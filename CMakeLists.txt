@@ -1,8 +1,17 @@
 #Project
-cmake_minimum_required(VERSION 2.4)
+cmake_minimum_required(VERSION 3.8)
 project(spsstereo)
 
-## Flags
+set(CMAKE_BUILD_TYPE Debug)
+
+# Enable C++11
+set(CMAKE_CXX_STANDARD 11)
+set(CMAKE_CXX_STANDARD_REQUIRED TRUE)
+
+set(CMAKE_C_FLAGS ${CMAKE_C_FLAGS} "-msse4.2")
+set(CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} "-msse4.2")
+
+# Flags
 #set(CMAKE_CXX_FLAGS_RELEASE "-Wall -O3 -msse4.2")
 #if (APPLE)
 #set(CMAKE_CXX_FLAGS_RELEASE "-Wall -O3 -msse4.2 -stdlib=libstdc++")
@@ -10,7 +19,6 @@ project(spsstereo)
 #set(CMAKE_BUILD_TYPE Release)
 
 find_package(OpenCV REQUIRED)
-
 
 # SPS-Stereo
 file(GLOB SPSSTEREO_SRC_FILES "*.cpp")

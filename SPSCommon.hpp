@@ -1,0 +1,8 @@
+//
+// Created by yyhu on 4/8/19.
+//
+
+#ifndef SPSSTEREO_SPSCOMMON_HPP
+#define SPSSTEREO_SPSCOMMON_HPP
+
+#endif //SPSSTEREO_SPSCOMMON_HPP
