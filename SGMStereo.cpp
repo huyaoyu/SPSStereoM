@@ -21,6 +21,11 @@
 #include <nmmintrin.h>
 #include <stdexcept>
 
+#include <iostream>
+
+#define TO_UCHAR(x) \
+    x > 255 ? 255 : x
+
 // Default parameters
 const int SGMSTEREO_DEFAULT_DISPARITY_TOTAL = 256;
 //const int SGMSTEREO_DEFAULT_DISPARITY_TOTAL = 608;
@@ -164,7 +169,11 @@ void SGMStereo::allocateDataBuffer() {
 	pathCostBufferSize_ = pathMinCostBufferSize_*disparitySize_;
 	totalBufferSize_ = (pathMinCostBufferSize_ + pathCostBufferSize_)*pathRowBufferTotal_ + costSumBufferSize_ + 16;
 
-	sgmBuffer_ = reinterpret_cast<short*>(_mm_malloc( (size_t)(totalBufferSize_)*sizeof(short), 16 ));
+	size_t totalBufferBytes = (size_t)(totalBufferSize_)*sizeof(short);
+
+    std::cout << "totalBufferBytes = " << totalBufferBytes << std::endl;
+
+	sgmBuffer_ = reinterpret_cast<short*>(_mm_malloc( totalBufferBytes, 16 ));
 }
 
 void SGMStereo::freeDataBuffer() {
@@ -182,7 +191,7 @@ void SGMStereo::computeCostImage(const cv::Mat& leftImage, const cv::Mat& rightI
 	auto rightGrayscaleImage = reinterpret_cast<unsigned char*>(malloc(width_*height_*sizeof(unsigned char)));
 	convertToGrayscale(leftImage, rightImage, leftGrayscaleImage, rightGrayscaleImage);
 
-	memset(leftCostImage_, 0, width_*height_*disparityTotal_*sizeof(unsigned short));
+	memset(leftCostImage_, 0, (size_t)(width_)*height_*disparityTotal_*sizeof(unsigned short));
 	computeLeftCostImage(leftGrayscaleImage, rightGrayscaleImage);
 
 	computeRightCostImage();
@@ -197,12 +206,23 @@ void SGMStereo::convertToGrayscale(const cv::Mat& leftImage,
 								   unsigned char* leftGrayscaleImage,
 								   unsigned char* rightGrayscaleImage) const
 {
+    float temp = 0.0f;
+
 	for (int y = 0; y < height_; ++y) {
 		for (int x = 0; x < width_; ++x) {
 			cv::Vec3b pix = leftImage.at<cv::Vec3b>(y, x);
-			leftGrayscaleImage[width_*y + x] = static_cast<unsigned char>(0.299*pix.val[2] + 0.587*pix.val[1] + 0.114*pix.val[0] + 0.5);
+
+            temp = 0.299*pix.val[2] + 0.587*pix.val[1] + 0.114*pix.val[0] + 0.5;
+            temp = TO_UCHAR(temp);
+
+			leftGrayscaleImage[width_*y + x] = static_cast<unsigned char>(temp);
+
 			pix = rightImage.at<cv::Vec3b>(y, x);
-			rightGrayscaleImage[width_*y + x] = static_cast<unsigned char>(0.299*pix.val[2] + 0.587*pix.val[1] + 0.114*pix.val[0] + 0.5);
+
+			temp = 0.299*pix.val[2] + 0.587*pix.val[1] + 0.114*pix.val[0] + 0.5;
+			temp = TO_UCHAR(temp);
+
+			rightGrayscaleImage[width_*y + x] = static_cast<unsigned char>(temp);
 		}
 	}
 }
@@ -238,7 +258,7 @@ void SGMStereo::computeLeftCostImage(const unsigned char* leftGrayscaleImage, co
 }
 
 void SGMStereo::computeCappedSobelImage(const unsigned char* image, const bool horizontalFlip, unsigned char* sobelImage) const {
-	memset(sobelImage, sobelCapValue_, widthStep_*height_);
+	memset(sobelImage, sobelCapValue_, (size_t)(widthStep_)*height_);
 
 	if (horizontalFlip) {
 		for (int y = 1; y < height_ - 1; ++y) {
@@ -295,7 +315,7 @@ void SGMStereo::calcTopRowCost(unsigned char*& leftSobelRow, int*& leftCensusRow
 		calcPixelwiseSAD(leftSobelRow, rightSobelRow);
 		addPixelwiseHamming(leftCensusRow, rightCensusRow);
 
-		memset(rowAggregatedCostCurrent, 0, disparityTotal_*sizeof(unsigned short));
+		memset(rowAggregatedCostCurrent, 0, (size_t)(disparityTotal_)*sizeof(unsigned short));
 		// x = 0
 		for (int x = 0; x <= aggregationWindowRadius_; ++x) {
 			int scale = x == 0 ? aggregationWindowRadius_ + 1 : 1;
@@ -346,7 +366,7 @@ void SGMStereo::calcRowCosts(unsigned char*& leftSobelRow, int*& leftCensusRow,
 			calcPixelwiseSAD(leftSobelRow, rightSobelRow);
 			addPixelwiseHamming(leftCensusRow, rightCensusRow);
 
-			memset(addRowAggregatedCost, 0, disparityTotal_*sizeof(unsigned short));
+			memset(addRowAggregatedCost, 0, (size_t)(disparityTotal_)*sizeof(unsigned short));
 			// x = 0
 			for (int x = 0; x <= aggregationWindowRadius_; ++x) {
 				int scale = x == 0 ? aggregationWindowRadius_ + 1 : 1;
@@ -592,7 +612,7 @@ void SGMStereo::performSGM(unsigned short* costImage, unsigned short* disparityI
 	int widthStepCostImage = width_*disparityTotal_;
 
 	short* costSums = sgmBuffer_;
-	memset(costSums, 0, costSumBufferSize_*sizeof(short));
+	memset(costSums, 0, (size_t)(costSumBufferSize_)*sizeof(short));
 
 	auto pathCosts = new short*[pathRowBufferTotal_];
 	auto pathMinCosts = new short*[pathRowBufferTotal_];
@@ -611,20 +631,20 @@ void SGMStereo::performSGM(unsigned short* costImage, unsigned short* disparityI
 
 		for (int i = 0; i < pathRowBufferTotal_; ++i) {
 			pathCosts[i] = costSums + costSumBufferSize_ + pathCostBufferSize_*i + pathDisparitySize_ + 8;
-			memset(pathCosts[i] - pathDisparitySize_ - 8, 0, pathCostBufferSize_*sizeof(short));
+			memset(pathCosts[i] - pathDisparitySize_ - 8, 0, (size_t)(pathCostBufferSize_)*sizeof(short));
 			pathMinCosts[i] = costSums + costSumBufferSize_ + pathCostBufferSize_*pathRowBufferTotal_
 				+ pathMinCostBufferSize_*i + pathTotal_*2;
-			memset(pathMinCosts[i] - pathTotal_, 0, pathMinCostBufferSize_*sizeof(short));
+			memset(pathMinCosts[i] - pathTotal_, 0, (size_t)(pathMinCostBufferSize_)*sizeof(short));
 		}
 
 		for (int y = startY; y != endY; y += stepY) {
 			unsigned short* pixelCostRow = costImage + widthStepCostImage*y;
 			short* costSumRow = costSums + costSumBufferRowSize_*y;
 
-			memset(pathCosts[0] - pathDisparitySize_ - 8, 0, pathDisparitySize_*sizeof(short));
-			memset(pathCosts[0] + width_*pathDisparitySize_ - 8, 0, pathDisparitySize_*sizeof(short));
-			memset(pathMinCosts[0] - pathTotal_, 0, pathTotal_*sizeof(short));
-			memset(pathMinCosts[0] + width_*pathTotal_, 0, pathTotal_*sizeof(short));
+			memset(pathCosts[0] - pathDisparitySize_ - 8, 0, (size_t)(pathDisparitySize_)*sizeof(short));
+			memset(pathCosts[0] + width_*pathDisparitySize_ - 8, 0, (size_t)(pathDisparitySize_)*sizeof(short));
+			memset(pathMinCosts[0] - pathTotal_, 0, (size_t)(pathTotal_)*sizeof(short));
+			memset(pathMinCosts[0] + width_*pathTotal_, 0, (size_t)(pathTotal_)*sizeof(short));
 
 			for (int x = startX; x != endX; x += stepX) {
 				int pathMinX = x*pathTotal_;
