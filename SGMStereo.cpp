@@ -51,7 +51,17 @@ SGMStereo::SGMStereo()
   aggregationWindowRadius_(SGMSTEREO_DEFAULT_AGGREGATION_WINDOW_RADIUS),
   smoothnessPenaltySmall_(SGMSTEREO_DEFAULT_SMOOTHNESS_PENALTY_SMALL),
   smoothnessPenaltyLarge_(SGMSTEREO_DEFAULT_SMOOTHNESS_PENALTY_LARGE),
-  consistencyThreshold_(SGMSTEREO_DEFAULT_CONSISTENCY_THRESHOLD) {}
+  consistencyThreshold_(SGMSTEREO_DEFAULT_CONSISTENCY_THRESHOLD),
+  width_(0), height_(0), widthStep_(0),
+  leftCostImage_(NULL), rightCostImage_(NULL),
+  pixelwiseCostRow_(NULL), rowAggregatedCost_(NULL),
+  halfPixelRightMin_(NULL), halfPixelRightMax_(NULL),
+  pathRowBufferTotal_(0), disparitySize_(0), pathTotal_(0), pathDisparitySize_(0),
+  costSumBufferRowSize_(0), costSumBufferSize_(0), pathMinCostBufferSize_(0), pathCostBufferSize_(0),
+  totalBufferSize_(0),
+  sgmBuffer_(NULL) {
+
+  }
 
 void SGMStereo::setDisparityTotal(const int disparityTotal) {
 	if (disparityTotal <= 0 || disparityTotal%16 != 0) {
