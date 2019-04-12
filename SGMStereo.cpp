@@ -1,3 +1,5 @@
+#pragma clang diagnostic push
+#pragma ide diagnostic ignored "portability-simd-intrinsics"
 /*
     Copyright (C) 2014  Koichiro Yamaguchi
 
@@ -22,6 +24,7 @@
 #include <stdexcept>
 
 #include <iostream>
+#include <cmath>
 
 #define TO_UCHAR(x) \
     x > 255 ? 255 : x
@@ -39,15 +42,16 @@ const int SGMSTEREO_DEFAULT_SMOOTHNESS_PENALTY_LARGE = 1600;
 const int SGMSTEREO_DEFAULT_CONSISTENCY_THRESHOLD = 1;
 
 
-SGMStereo::SGMStereo() : disparityTotal_(SGMSTEREO_DEFAULT_DISPARITY_TOTAL),
-						 disparityFactor_(SGMSTEREO_DEFAULT_DISPARITY_FACTOR),
-						 sobelCapValue_(SGMSTEREO_DEFAULT_SOBEL_CAP_VALUE),
-						 censusWindowRadius_(SGMSTEREO_DEFAULT_CENSUS_WINDOW_RADIUS),
-						 censusWeightFactor_(SGMSTEREO_DEFAULT_CENSUS_WEIGHT_FACTOR),
-						 aggregationWindowRadius_(SGMSTEREO_DEFAULT_AGGREGATION_WINDOW_RADIUS),
-						 smoothnessPenaltySmall_(SGMSTEREO_DEFAULT_SMOOTHNESS_PENALTY_SMALL),
-						 smoothnessPenaltyLarge_(SGMSTEREO_DEFAULT_SMOOTHNESS_PENALTY_LARGE),
-						 consistencyThreshold_(SGMSTEREO_DEFAULT_CONSISTENCY_THRESHOLD) {}
+SGMStereo::SGMStereo()
+: disparityTotal_(SGMSTEREO_DEFAULT_DISPARITY_TOTAL),
+  disparityFactor_(SGMSTEREO_DEFAULT_DISPARITY_FACTOR),
+  sobelCapValue_(SGMSTEREO_DEFAULT_SOBEL_CAP_VALUE),
+  censusWindowRadius_(SGMSTEREO_DEFAULT_CENSUS_WINDOW_RADIUS),
+  censusWeightFactor_(SGMSTEREO_DEFAULT_CENSUS_WEIGHT_FACTOR),
+  aggregationWindowRadius_(SGMSTEREO_DEFAULT_AGGREGATION_WINDOW_RADIUS),
+  smoothnessPenaltySmall_(SGMSTEREO_DEFAULT_SMOOTHNESS_PENALTY_SMALL),
+  smoothnessPenaltyLarge_(SGMSTEREO_DEFAULT_SMOOTHNESS_PENALTY_LARGE),
+  consistencyThreshold_(SGMSTEREO_DEFAULT_CONSISTENCY_THRESHOLD) {}
 
 void SGMStereo::setDisparityTotal(const int disparityTotal) {
 	if (disparityTotal <= 0 || disparityTotal%16 != 0) {
@@ -113,9 +117,9 @@ void SGMStereo::compute(const cv::Mat& leftImage,
 
 	computeCostImage(leftImage, rightImage);
 
-	unsigned short* leftDisparityImage = reinterpret_cast<unsigned short*>(malloc(width_*height_*sizeof(unsigned short)));
+	auto leftDisparityImage = reinterpret_cast<unsigned short*>(malloc(width_*height_*sizeof(unsigned short)));
 	performSGM(leftCostImage_, leftDisparityImage);
-	unsigned short* rightDisparityImage = reinterpret_cast<unsigned short*>(malloc(width_*height_*sizeof(unsigned short)));
+	auto rightDisparityImage = reinterpret_cast<unsigned short*>(malloc(width_*height_*sizeof(unsigned short)));
 	performSGM(rightCostImage_, rightDisparityImage);
 	enforceLeftRightConsistency(leftDisparityImage, rightDisparityImage);
 
@@ -206,7 +210,8 @@ void SGMStereo::convertToGrayscale(const cv::Mat& leftImage,
 								   unsigned char* leftGrayscaleImage,
 								   unsigned char* rightGrayscaleImage) const
 {
-    float temp = 0.0f;
+//    float temp = 0.0f;
+    float temp;
 
 	for (int y = 0; y < height_; ++y) {
 		for (int x = 0; x < width_; ++x) {
@@ -870,3 +875,5 @@ void SGMStereo::enforceLeftRightConsistency(unsigned short* leftDisparityImage, 
 		}
 	}
 }
+
+#pragma clang diagnostic pop

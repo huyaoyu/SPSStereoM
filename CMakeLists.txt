@@ -18,7 +18,12 @@ set(CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} "-msse4.2")
 #endif (APPLE)
 #set(CMAKE_BUILD_TYPE Release)
 
+set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} /opt/ros/kinetic/share/OpenCV-3.3.1-dev)
+
 find_package(OpenCV REQUIRED)
+message(STATUS "OpenCV_INCLUDE_DIRS = ${OpenCV_INCLUDE_DIRS}")
+
+include_directories(AFTER ${OpenCV_INCLUDE_DIRS})
 
 # SPS-Stereo
 file(GLOB SPSSTEREO_SRC_FILES "*.cpp")

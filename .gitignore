@@ -1,0 +1,10 @@
+Build/
+build/
+cmake*/
+*.pyc
+*.dat
+*.png
+*.jpg
+*.bmp
+.idea/
+
