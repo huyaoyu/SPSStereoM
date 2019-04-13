@@ -24,6 +24,9 @@
 #include "SPSStereo.h"
 #include "defParameter.h"
 
+#include "StereoUtils/ImageOutput.hpp"
+#include "StereoUtils/PLY.hpp"
+
 
 void makeSegmentBoundaryImage(const cv::Mat & inputImage,
 							  const /*png::image<png::gray_pixel_16>*/ cv::Mat & segmentImage,
@@ -85,7 +88,33 @@ int main(int argc, char* argv[]) {
         writeBoundaryLabelFile(boundaryLabels, outputBoundaryLabelFilename);
         std::getline(images, leftImageFilename);
         std::getline(images, rightImageFilename);
+
+        std::cout << "disparityImage.type() = " << disparityImage.type() << "." << std::endl;
+        cv::FileStorage file("disparityImage.yml", cv::FileStorage::WRITE);
+        file << "disparityImage" << disparityImage;
+
+        // Output floating point image.
+        write_2_float_image(outputBaseFilename + "_float.png", disparityImage, 140, 180);
     }
+
+    // Test PLY.
+
+    cv::Mat sampleDisp(2, 2, CV_16UC1);
+    sampleDisp.at<uint16_t>(0, 0) = 1;
+    sampleDisp.at<uint16_t>(0, 1) = 2;
+    sampleDisp.at<uint16_t>(1, 0) = 3;
+    sampleDisp.at<uint16_t>(1, 1) = 4;
+
+    float rpjMatrix[16] = {
+            1.0, 0.0, 0.0, 0.0,
+            0.0, 1.0, 0.0, 0.0,
+            0.0, 0.0, 1.0, 0.0,
+            0.0, 0.0, 0.0, 1.0
+    };
+
+    write_ply<uint16_t, float>("TestPLY_Binary.ply", sampleDisp.ptr<uint16_t>(), 2, 2, rpjMatrix, true);
+    write_ply<uint16_t, float>("TestPLY_Binary.ply", sampleDisp.ptr<uint16_t>(), 2, 2, rpjMatrix, false);
+
     return 0;
 }
 

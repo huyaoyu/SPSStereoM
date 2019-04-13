@@ -25,8 +25,21 @@ message(STATUS "OpenCV_INCLUDE_DIRS = ${OpenCV_INCLUDE_DIRS}")
 
 include_directories(AFTER ${OpenCV_INCLUDE_DIRS})
 
+include_directories(BEFORE ../includes)
+
+# Defines.
+#add_compile_definitions(TINYPLY_IMPLEMENTATION)
+
 # SPS-Stereo
-file(GLOB SPSSTEREO_SRC_FILES "*.cpp")
+file(GLOB_RECURSE SPSSTEREO_SRC_FILES "*.cpp")
+
+IF (SPSSTEREO_SRC_FILES)
+    FOREACH (SFILE ${SPSSTEREO_SRC_FILES})
+        MESSAGE(STATUS "CPP: ${SFILE}")
+    ENDFOREACH (SFILE)
+ENDIF (SPSSTEREO_SRC_FILES)
+
 add_executable(spsstereo ${SPSSTEREO_SRC_FILES})
+#add_executable(spsstereo spsstereo_main.cpp SGMStereo.cpp SPSStereo.cpp StereoUtils/PLY.cpp)
 target_include_directories(spsstereo PRIVATE ${OpenCV_INCLUDE_DIRS})
 target_link_libraries(spsstereo ${OpenCV_LIBRARIES})

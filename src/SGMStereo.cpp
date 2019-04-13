@@ -23,8 +23,8 @@
 #include <nmmintrin.h>
 #include <stdexcept>
 
-#include <iostream>
 #include <cmath>
+#include <iostream>
 
 #define TO_UCHAR(x) \
     x > 255 ? 255 : x
