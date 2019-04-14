@@ -29,6 +29,9 @@
 #define TO_UCHAR(x) \
     x > 255 ? 255 : x
 
+#define D16(x, T) \
+    static_cast<T>(x) / 16 * 16
+
 // Default parameters
 const int SGMSTEREO_DEFAULT_DISPARITY_TOTAL = 256;
 //const int SGMSTEREO_DEFAULT_DISPARITY_TOTAL = 608;
@@ -483,7 +486,8 @@ void SGMStereo::calcPixelwiseSAD(const unsigned char* leftSobelRow, const unsign
 		__m128i registerLeftMinValue = _mm_set1_epi8(static_cast<char>(leftMinValue));
 		__m128i registerLeftMaxValue = _mm_set1_epi8(static_cast<char>(leftMaxValue));
 
-		for (int d = 0; d < x/16; d += 16) {
+//		for (int d = 0; d < x/16; d += 16) {
+        for (int d = 0; d < D16(x, int); d += 16) {
 			__m128i registerRightCenterValue = _mm_loadu_si128(reinterpret_cast<const __m128i*>(rightSobelRow + width_ - 1 - x + d));
 			__m128i registerRightMinValue = _mm_loadu_si128(reinterpret_cast<const __m128i*>(halfPixelRightMin_ + width_ - 1 - x + d));
 			__m128i registerRightMaxValue = _mm_loadu_si128(reinterpret_cast<const __m128i*>(halfPixelRightMax_ + width_ - 1 - x + d));
@@ -496,7 +500,7 @@ void SGMStereo::calcPixelwiseSAD(const unsigned char* leftSobelRow, const unsign
 
 			_mm_store_si128(reinterpret_cast<__m128i*>(pixelwiseCostRow_ + disparityTotal_*x + d), registerCost);
 		}
-		for (int d = x/16; d <= x; ++d) {
+		for (int d = D16(x, int); d <= x; ++d) {
 			int rightCenterValue = rightSobelRow[width_ - 1 - x + d];
 			int rightMinValue = halfPixelRightMin_[width_ - 1 - x + d];
 			int rightMaxValue = halfPixelRightMax_[width_ - 1 - x + d];

@@ -94,7 +94,8 @@ int main(int argc, char* argv[]) {
         file << "disparityImage" << disparityImage;
 
         // Output floating point image.
-        write_2_float_image(outputBaseFilename + "_float.png", disparityImage, 140, 180);
+//        write_2_float_image(outputBaseFilename + "_float.png", disparityImage, 140, 180);
+        write_2_float_image(outputBaseFilename + "_float.png", disparityImage, 1, 256);
     }
 
     // Test PLY.
