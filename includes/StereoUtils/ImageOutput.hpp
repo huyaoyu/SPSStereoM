@@ -8,6 +8,19 @@
 #include <opencv2/opencv.hpp>
 #include <string>
 
+/**
+ * Normalize a single channel image.
+ *
+ * The normalization is performed according to the maximum
+ * and minimum values of the src.
+ *
+ * dst will be a CV_32FC1 image.
+ *
+ * @param src The input image. Only supports single channel image.
+ * @param dst The output image, CV_32FC1.
+ */
+void normalize(const cv::Mat& src, cv::Mat& dst);
+
 /** Clip and normalize an image.
  *
  * Clip and normalize an image. The input image will be clipped according to

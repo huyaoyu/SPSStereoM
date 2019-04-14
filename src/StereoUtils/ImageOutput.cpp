@@ -7,6 +7,38 @@
 
 #include "StereoUtils/ImageOutput.hpp"
 
+void normalize(const cv::Mat& src, cv::Mat& dst)
+{
+    const int channels = src.channels();
+
+    if ( 1 != channels )
+    {
+        std::stringstream ss;
+        ss << "Only supports single channel image. channels = " << channels << ".";
+        throw std::runtime_error(ss.str());
+    }
+
+    // Create dst.
+    dst.create( src.rows, src.cols, CV_32FC1 );
+
+    // Get the minimum and maximum values of src.
+    double minVal, maxVal, range;
+    cv::minMaxLoc(src, &minVal, &maxVal);
+
+    range = maxVal - minVal;
+
+    if ( 0 == range )
+    {
+        std::stringstream ss;
+        ss << "Zero range detected. minVal = " << minVal << ", maxVal = " << maxVal << "." << std::endl;
+        std::cout << ss.str();
+        return;
+    }
+
+    cv::add(src, -minVal, dst, cv::noArray(), CV_32FC1);
+    dst = dst * ( 1.0/range );
+}
+
 void clip_normalize(const cv::Mat& src, cv::Mat& dst, float minValue, float maxValue)
 {
     if ( maxValue <= minValue || minValue < 0 )
