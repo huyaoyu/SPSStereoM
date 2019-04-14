@@ -10,4 +10,10 @@ cmake*/
 Pillar/
 Data/
 data/
+CMakeCache.txt
+CMakeFiles/
+Makefile
+cmake_install.cmake
+spsstereo
+spsstereo.cbp
 
