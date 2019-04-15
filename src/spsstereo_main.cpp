@@ -15,11 +15,12 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include <iostream>
+#include <boost/filesystem.hpp>
 #include <fstream>
+#include <iostream>
+#include <opencv2/opencv.hpp>
 #include <string>
 #include <vector>
-#include <opencv2/opencv.hpp>
 
 #include "SPSStereo.h"
 #include "defParameter.h"
@@ -70,11 +71,21 @@ int main(int argc, char* argv[]) {
         cv::Mat segmentBoundaryImage;
         makeSegmentBoundaryImage(leftImage, segmentImage, boundaryLabels, segmentBoundaryImage);
 
-        std::string outputBaseFilename = leftImageFilename;
-        size_t slashPosition = outputBaseFilename.rfind('/');
-        if (slashPosition != std::string::npos) outputBaseFilename.erase(0, slashPosition + 1);
-        size_t dotPosition = outputBaseFilename.rfind('.');
-        if (dotPosition != std::string::npos) outputBaseFilename.erase(dotPosition);
+        std::string outputBaseFilename;
+
+//        outputBaseFilename = leftImageFilename
+//        size_t slashPosition = outputBaseFilename.rfind('/');
+//        if (slashPosition != std::string::npos) outputBaseFilename.erase(0, slashPosition + 1);
+//        size_t dotPosition = outputBaseFilename.rfind('.');
+//        if (dotPosition != std::string::npos) outputBaseFilename.erase(dotPosition);
+
+        // Prepare the filename.
+        boost::filesystem::path leftImageFilenameBoost(leftImageFilename);
+        boost::filesystem::path imageFilename = leftImageFilenameBoost.stem();
+        boost::filesystem::path outputDir = leftImageFilenameBoost.parent_path();
+
+        outputBaseFilename = outputDir.string() + "/" + imageFilename.string();
+
         std::string outputDisparityImageFilename = outputBaseFilename + "_left_disparity.png";
         std::string outputSegmentImageFilename = outputBaseFilename + "_segment.png";
         std::string outputBoundaryImageFilename = outputBaseFilename + "_boundary.png";

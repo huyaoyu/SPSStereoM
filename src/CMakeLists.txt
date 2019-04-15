@@ -23,8 +23,13 @@ set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} /opt/ros/kinetic/share/OpenCV-3.3.1-d
 find_package(OpenCV REQUIRED)
 message(STATUS "OpenCV_INCLUDE_DIRS = ${OpenCV_INCLUDE_DIRS}")
 
-include_directories(AFTER ${OpenCV_INCLUDE_DIRS})
+# Boost.
+FIND_LIBRARY( LIB_BOOST_FILESYSTEM NAMES boost_filesystem )
+FIND_LIBRARY( LIB_BOOST_SYSTEM NAMES boost_system )
+message(STATUS "LIB_BOOST_FILESYSTEM=${LIB_BOOST_FILESYSTEM}")
+message(STATUS "LIB_BOOST_SYSTEM=${LIB_BOOST_SYSTEM}")
 
+include_directories(AFTER ${OpenCV_INCLUDE_DIRS})
 include_directories(BEFORE ../includes)
 
 # Defines.
@@ -42,4 +47,4 @@ ENDIF (SPSSTEREO_SRC_FILES)
 add_executable(spsstereo ${SPSSTEREO_SRC_FILES})
 #add_executable(spsstereo spsstereo_main.cpp SGMStereo.cpp SPSStereo.cpp StereoUtils/PLY.cpp)
 target_include_directories(spsstereo PRIVATE ${OpenCV_INCLUDE_DIRS})
-target_link_libraries(spsstereo ${OpenCV_LIBRARIES})
+target_link_libraries(spsstereo ${OpenCV_LIBRARIES} ${LIB_BOOST_SYSTEM} ${LIB_BOOST_FILESYSTEM})
