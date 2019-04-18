@@ -50,10 +50,14 @@ int main(int argc, char* argv[]) {
     
     std::getline(images, leftImageFilename);
     std::getline(images, rightImageFilename);
+
+    cv::Mat leftImage;
+    cv::Mat disparityImage;
+
     while (!images.eof())
     {
         std::cout << "Procesing : " << leftImageFilename << std::endl;
-        cv::Mat leftImage = cv::imread(leftImageFilename, CV_LOAD_IMAGE_COLOR);
+        leftImage = cv::imread(leftImageFilename, CV_LOAD_IMAGE_COLOR);
         cv::Mat rightImage = cv::imread(rightImageFilename, CV_LOAD_IMAGE_COLOR);
 
         SPSStereo sps;
@@ -63,7 +67,7 @@ int main(int argc, char* argv[]) {
         sps.setPenaltyParameter(lambda_hinge, lambda_occ, lambda_pen);
 
         cv::Mat segmentImage;
-        cv::Mat disparityImage;
+//        cv::Mat disparityImage;
         std::vector< std::vector<double> > disparityPlaneParameters;
         std::vector< std::vector<int> > boundaryLabels;
         sps.compute(superpixelTotal, leftImage, rightImage, segmentImage, disparityImage, disparityPlaneParameters, boundaryLabels);
@@ -127,14 +131,19 @@ int main(int argc, char* argv[]) {
     sampleDisp.at<uint16_t>(1, 1) = 4;
 
     float rpjMatrix[16] = {
-            1.0, 0.0, 0.0, 0.0,
-            0.0, 1.0, 0.0, 0.0,
-            0.0, 0.0, 1.0, 0.0,
-            0.0, 0.0, 0.0, 1.0
+            1.0,  0.0,                      0.0, -5.068476486206054688e+02,
+            0.0,  1.0,                      0.0, -3.699920768737792969e+02,
+            0.0,  0.0,                      0.0,  1.202625958748662015e+03,
+            0.0,  0.0, 2.611153635327156941e+00,  0.0
     };
 
     write_ply<uint16_t, float>("TestPLY_Binary.ply", sampleDisp.ptr<uint16_t>(), 2, 2, rpjMatrix, true);
     write_ply<uint16_t, float>("TestPLY_Binary.ply", sampleDisp.ptr<uint16_t>(), 2, 2, rpjMatrix, false);
+
+    cv::Mat dispFloat;
+    disparityImage.convertTo(dispFloat, CV_32FC1);
+
+    write_ply_with_color("TestPLY_ASCII_Color.ply", dispFloat, leftImage, rpjMatrix, true, false);
 
     return 0;
 }

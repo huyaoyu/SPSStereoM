@@ -7,6 +7,7 @@
 
 #include <fstream>
 #include <iostream>
+#include <opencv2/opencv.hpp>
 #include <string>
 #include <vector>
 
@@ -37,6 +38,10 @@
 template<typename DT, typename QT>
 void write_ply(const std::string& fn, const DT* disp, size_t h, size_t w, const QT* q, bool binary = false)
 {
+    // ========================
+    // NOT FINISHED.
+    // ========================
+
     // Create a buffer.
     std::filebuf binBuffer;
     if ( true == binary )
@@ -76,5 +81,21 @@ void write_ply(const std::string& fn, const DT* disp, size_t h, size_t w, const 
 
     plyFile.write( ofs, binary );
 }
+
+/**
+ * Write a PLY file based on the disparity and color image. The reprojection matrix is Q which
+ * is 4x4 and row-major.
+ *
+ * This functio only handles specific Mat types.
+ * disp must be CV_32FC1, color must be CV_8UC3.
+ *
+ * @param fn The output filename.
+ * @param disp The disparity image, should be one channel.
+ * @param color The color image, should be three channels.
+ * @param Q The reprojection matrix. Should be 4x4.
+ * @param binary Set to true if write a binary PLY file.
+ */
+void write_ply_with_color(const std::string& fn, const cv::Mat& disp, const cv::Mat& color,
+        const float* Q, bool flip, bool binary = false);
 
 #endif //STEREO_UTILS_PLY_HPP

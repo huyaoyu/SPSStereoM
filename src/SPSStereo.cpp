@@ -131,7 +131,8 @@ void SPSStereo::compute(const int superpixelTotal,
 	initializeSegment(superpixelTotal);
 	performSmoothingSegmentation();
 
-	makeOutputImage(segmentImage, disparityImage);
+//	makeOutputImage(segmentImage, disparityImage);
+    makeOutputImageF(segmentImage, disparityImage);
 	makeSegmentBoundaryData(disparityPlaneParameters, boundaryLabels);
 
 	freeBuffer();
@@ -943,6 +944,23 @@ void SPSStereo::makeOutputImage(/*png::image<png::gray_pixel_16>*/ cv::Mat & seg
 			}
 		}
 	}
+}
+
+void SPSStereo::makeOutputImageF(/*png::image<png::gray_pixel_16>*/ cv::Mat & segmentImage, cv::Mat& segmentDisparityImage) const {
+    segmentImage.create(height_, width_,  CV_16UC1);
+    segmentDisparityImage.create(height_, width_, CV_32FC1);
+    for (int y = 0; y < height_; ++y) {
+        for (int x = 0; x < width_; ++x) {
+            int pixelSegmentIndex = labelImage_[width_*y + x];
+            segmentImage.at<uint16_t>(y, x) = pixelSegmentIndex;
+            double estimatedDisparity = segments_[pixelSegmentIndex].estimatedDisparity(x, y);
+            if (estimatedDisparity <= 0.0 || estimatedDisparity > 255.0) {
+                segmentDisparityImage.at<float>(y, x) = 0.0f;
+            } else {
+                segmentDisparityImage.at<float>(y, x) = static_cast<float>(estimatedDisparity*outputDisparityFactor_);
+            }
+        }
+    }
 }
 
 void SPSStereo::makeSegmentBoundaryData(std::vector< std::vector<double> >& disparityPlaneParameters, std::vector< std::vector<int> >& boundaryLabels) const {

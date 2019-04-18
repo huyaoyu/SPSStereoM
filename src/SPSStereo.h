@@ -214,6 +214,7 @@ private:
 	void estimateBoundaryLabel();
 	void estimateSmoothFitting();
 	void makeOutputImage(cv::Mat /*png::image<png::gray_pixel_16>*/& segmentImage,cv::Mat/* png::image<png::gray_pixel_16>*/& segmentDisparityImage) const;
+    void makeOutputImageF(cv::Mat /*png::image<png::gray_pixel_16>*/& segmentImage,cv::Mat& segmentDisparityImage) const;
 	void makeSegmentBoundaryData(std::vector< std::vector<double> >& disparityPlaneParameters, std::vector< std::vector<int> >& boundaryLabels) const;
 
 
