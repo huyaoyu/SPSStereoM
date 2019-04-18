@@ -16,8 +16,12 @@
 */
 
 #include <boost/filesystem.hpp>
+#include <boost/program_options.hpp>
+
+#include <algorithm>
 #include <fstream>
 #include <iostream>
+#include <iterator>
 #include <opencv2/opencv.hpp>
 #include <string>
 #include <vector>
@@ -25,9 +29,12 @@
 #include "SPSStereo.h"
 #include "defParameter.h"
 
+#include "nlohmann/json.hpp"
+
 #include "StereoUtils/ImageOutput.hpp"
 #include "StereoUtils/PLY.hpp"
 
+namespace po = boost::program_options;
 
 void makeSegmentBoundaryImage(const cv::Mat & inputImage,
 							  const /*png::image<png::gray_pixel_16>*/ cv::Mat & segmentImage,
@@ -36,46 +43,87 @@ void makeSegmentBoundaryImage(const cv::Mat & inputImage,
 void writeDisparityPlaneFile(const std::vector< std::vector<double> >& disparityPlaneParameters, const std::string outputDisparityPlaneFilename);
 void writeBoundaryLabelFile(const std::vector< std::vector<int> >& boundaryLabels, const std::string outputBoundaryLabelFilename);
 
+/**
+ * This function is copied from
+ * https://www.boost.org/doc/libs/1_60_0/libs/program_options/example/options_description.cpp
+ *
+ * @tparam T
+ * @param os
+ * @param v
+ * @return
+ */
+template<class T>
+std::ostream& operator<<(std::ostream& os, const std::vector<T>& v)
+{
+    copy(v.begin(), v.end(), std::ostream_iterator<T>(os, " "));
+    return os;
+}
 
 int main(int argc, char* argv[]) {
-	if (argc < 2) {
-		std::cerr << "usage: sgmstereo left right" << std::endl;
-		exit(1);
-	}
-    
-    std::string leftImageFilename;
-    std::string rightImageFilename;
+    std::string inputJSON;
 
-    std::ifstream images(argv[1]);
+    try
+    {
+        po::options_description optDesc("Allowed options");
+        optDesc.add_options()
+                ("help", "produce help message")
+                ("input-file", po::value< std::string >(&inputJSON), "input file");
+
+        po::positional_options_description posOptDesc;
+        posOptDesc.add("input-file", -1);
+
+        po::variables_map optVM;
+        po::store(po::command_line_parser(argc, argv).
+                options(optDesc).positional(posOptDesc).run(), optVM);
+        po::notify(optVM);
+
+//        if ( optVM.count("input-file") )
+//        {
+//            std::cout << "input-file is " << optVM["input-file"].as< std::string>() << std::endl;
+//        }
+
+    }
+    catch(std::exception& e)
+    {
+        std::cout << e.what() << std::endl;
+        return 1;
+    }
+
+    std::cout << "inputJson: " << inputJSON << std::endl;
+
+    // Parse the JSON file.
+    std::ifstream ifs(inputJSON);
+    nlohmann::json J = nlohmann::json::parse(ifs);
+
+    std::cout << "L: " << J["images"]["L"] << std::endl;
+    std::cout << "R: " << J["images"]["R"] << std::endl;
     
-    std::getline(images, leftImageFilename);
-    std::getline(images, rightImageFilename);
+    std::string leftImageFilename = J["images"]["L"];
+    std::string rightImageFilename = J["images"]["R"];
 
     cv::Mat leftImage;
     cv::Mat disparityImage;
 
-    while (!images.eof())
-    {
-        std::cout << "Procesing : " << leftImageFilename << std::endl;
-        leftImage = cv::imread(leftImageFilename, CV_LOAD_IMAGE_COLOR);
-        cv::Mat rightImage = cv::imread(rightImageFilename, CV_LOAD_IMAGE_COLOR);
+    std::cout << "Procesing : " << leftImageFilename << std::endl;
+    leftImage = cv::imread(leftImageFilename, CV_LOAD_IMAGE_COLOR);
+    cv::Mat rightImage = cv::imread(rightImageFilename, CV_LOAD_IMAGE_COLOR);
 
-        SPSStereo sps;
-        sps.setIterationTotal(outerIterationTotal, innerIterationTotal);
-        sps.setWeightParameter(lambda_pos, lambda_depth, lambda_bou, lambda_smo);
-        sps.setInlierThreshold(lambda_d);
-        sps.setPenaltyParameter(lambda_hinge, lambda_occ, lambda_pen);
+    SPSStereo sps;
+    sps.setIterationTotal(outerIterationTotal, innerIterationTotal);
+    sps.setWeightParameter(lambda_pos, lambda_depth, lambda_bou, lambda_smo);
+    sps.setInlierThreshold(lambda_d);
+    sps.setPenaltyParameter(lambda_hinge, lambda_occ, lambda_pen);
 
-        cv::Mat segmentImage;
+    cv::Mat segmentImage;
 //        cv::Mat disparityImage;
-        std::vector< std::vector<double> > disparityPlaneParameters;
-        std::vector< std::vector<int> > boundaryLabels;
-        sps.compute(superpixelTotal, leftImage, rightImage, segmentImage, disparityImage, disparityPlaneParameters, boundaryLabels);
+    std::vector< std::vector<double> > disparityPlaneParameters;
+    std::vector< std::vector<int> > boundaryLabels;
+    sps.compute(superpixelTotal, leftImage, rightImage, segmentImage, disparityImage, disparityPlaneParameters, boundaryLabels);
 
-        cv::Mat segmentBoundaryImage;
-        makeSegmentBoundaryImage(leftImage, segmentImage, boundaryLabels, segmentBoundaryImage);
+    cv::Mat segmentBoundaryImage;
+    makeSegmentBoundaryImage(leftImage, segmentImage, boundaryLabels, segmentBoundaryImage);
 
-        std::string outputBaseFilename;
+    std::string outputBaseFilename;
 
 //        outputBaseFilename = leftImageFilename
 //        size_t slashPosition = outputBaseFilename.rfind('/');
@@ -83,44 +131,41 @@ int main(int argc, char* argv[]) {
 //        size_t dotPosition = outputBaseFilename.rfind('.');
 //        if (dotPosition != std::string::npos) outputBaseFilename.erase(dotPosition);
 
-        // Prepare the filename.
-        boost::filesystem::path leftImageFilenameBoost(leftImageFilename);
-        boost::filesystem::path imageFilename = leftImageFilenameBoost.stem();
-        boost::filesystem::path outputDir = leftImageFilenameBoost.parent_path();
+    // Prepare the filename.
+    boost::filesystem::path leftImageFilenameBoost(leftImageFilename);
+    boost::filesystem::path imageFilename = leftImageFilenameBoost.stem();
+    boost::filesystem::path outputDir = leftImageFilenameBoost.parent_path();
 
-        outputBaseFilename = outputDir.string() + "/" + imageFilename.string();
+    outputBaseFilename = outputDir.string() + "/" + imageFilename.string();
 
-        std::string outputDisparityImageFilename = outputBaseFilename + "_left_disparity.png";
-        std::string outputSegmentImageFilename = outputBaseFilename + "_segment.png";
-        std::string outputBoundaryImageFilename = outputBaseFilename + "_boundary.png";
-        std::string outputDisparityPlaneFilename = outputBaseFilename + "_plane.txt";
-        std::string outputBoundaryLabelFilename = outputBaseFilename + "_label.txt";
+    std::string outputDisparityImageFilename = outputBaseFilename + "_left_disparity.png";
+    std::string outputSegmentImageFilename = outputBaseFilename + "_segment.png";
+    std::string outputBoundaryImageFilename = outputBaseFilename + "_boundary.png";
+    std::string outputDisparityPlaneFilename = outputBaseFilename + "_plane.txt";
+    std::string outputBoundaryLabelFilename = outputBaseFilename + "_label.txt";
 
-        cv::imwrite(outputDisparityImageFilename, disparityImage);
-        cv::imwrite(outputSegmentImageFilename, segmentImage);
-        cv::imwrite(outputBoundaryImageFilename, segmentBoundaryImage);
-        writeDisparityPlaneFile(disparityPlaneParameters, outputDisparityPlaneFilename);
-        writeBoundaryLabelFile(boundaryLabels, outputBoundaryLabelFilename);
-        std::getline(images, leftImageFilename);
-        std::getline(images, rightImageFilename);
+    cv::imwrite(outputDisparityImageFilename, disparityImage);
+    cv::imwrite(outputSegmentImageFilename, segmentImage);
+    cv::imwrite(outputBoundaryImageFilename, segmentBoundaryImage);
+    writeDisparityPlaneFile(disparityPlaneParameters, outputDisparityPlaneFilename);
+    writeBoundaryLabelFile(boundaryLabels, outputBoundaryLabelFilename);
 
-        std::cout << "disparityImage.type() = " << disparityImage.type() << "." << std::endl;
-        cv::FileStorage file("disparityImage.yml", cv::FileStorage::WRITE);
-        file << "disparityImage" << disparityImage;
+    std::cout << "disparityImage.type() = " << disparityImage.type() << "." << std::endl;
+    cv::FileStorage file("disparityImage.yml", cv::FileStorage::WRITE);
+    file << "disparityImage" << disparityImage;
 
-        // Output floating point image.
+    // Output floating point image.
 //        write_2_float_image(outputBaseFilename + "_float.png", disparityImage, 140, 180);
-        write_2_float_image(outputBaseFilename + "_float.png", disparityImage, 1, 256);
+    write_2_float_image(outputBaseFilename + "_float.png", disparityImage, 1, 256);
 
-        cv::Mat normalizedSegmentImage;
-        normalize(segmentImage, normalizedSegmentImage);
+    cv::Mat normalizedSegmentImage;
+    normalize(segmentImage, normalizedSegmentImage);
 
-        normalizedSegmentImage = normalizedSegmentImage * 255.0;
+    normalizedSegmentImage = normalizedSegmentImage * 255.0;
 
-        cv::imwrite(outputBaseFilename + "_segment_normalized.png", normalizedSegmentImage);
-        cv::FileStorage fileNormalizedSegmentImage("NormalizedSegmentImage.yml", cv::FileStorage::WRITE);
-        fileNormalizedSegmentImage << "normalizedSegmentImage" << normalizedSegmentImage;
-    }
+    cv::imwrite(outputBaseFilename + "_segment_normalized.png", normalizedSegmentImage);
+    cv::FileStorage fileNormalizedSegmentImage("NormalizedSegmentImage.yml", cv::FileStorage::WRITE);
+    fileNormalizedSegmentImage << "normalizedSegmentImage" << normalizedSegmentImage;
 
     // Test PLY.
 
@@ -143,7 +188,7 @@ int main(int argc, char* argv[]) {
     cv::Mat dispFloat;
     disparityImage.convertTo(dispFloat, CV_32FC1);
 
-    write_ply_with_color("TestPLY_ASCII_Color.ply", dispFloat, leftImage, rpjMatrix, true, false);
+    write_ply_with_color(outputBaseFilename + "_Cloud.ply", dispFloat, leftImage, rpjMatrix, true, false);
 
     return 0;
 }

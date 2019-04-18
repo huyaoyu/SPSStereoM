@@ -26,8 +26,11 @@ message(STATUS "OpenCV_INCLUDE_DIRS = ${OpenCV_INCLUDE_DIRS}")
 # Boost.
 FIND_LIBRARY( LIB_BOOST_FILESYSTEM NAMES boost_filesystem )
 FIND_LIBRARY( LIB_BOOST_SYSTEM NAMES boost_system )
+FIND_LIBRARY( LIB_BOOST_PROGRAM_OPTIONS NAMES boost_program_options)
 message(STATUS "LIB_BOOST_FILESYSTEM=${LIB_BOOST_FILESYSTEM}")
 message(STATUS "LIB_BOOST_SYSTEM=${LIB_BOOST_SYSTEM}")
+message(STATUS "LIB_BOOST_PROGRAM_OPTIONS=${LIB_BOOST_PROGRAM_OPTIONS}")
+
 
 include_directories(AFTER ${OpenCV_INCLUDE_DIRS})
 include_directories(BEFORE ../includes)
@@ -47,4 +50,4 @@ ENDIF (SPSSTEREO_SRC_FILES)
 add_executable(spsstereo ${SPSSTEREO_SRC_FILES})
 #add_executable(spsstereo spsstereo_main.cpp SGMStereo.cpp SPSStereo.cpp StereoUtils/PLY.cpp)
 target_include_directories(spsstereo PRIVATE ${OpenCV_INCLUDE_DIRS})
-target_link_libraries(spsstereo ${OpenCV_LIBRARIES} ${LIB_BOOST_SYSTEM} ${LIB_BOOST_FILESYSTEM})
+target_link_libraries(spsstereo ${OpenCV_LIBRARIES} ${LIB_BOOST_SYSTEM} ${LIB_BOOST_FILESYSTEM} ${LIB_BOOST_PROGRAM_OPTIONS})
