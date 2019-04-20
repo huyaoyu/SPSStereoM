@@ -20,7 +20,9 @@
 #include <opencv2/opencv.hpp>
 #include <string>
 
-class SGMStereo {
+#include "StereoBase.hpp"
+
+class SGMStereo : public StereoBase {
 public:
 	SGMStereo();
 
@@ -35,7 +37,9 @@ public:
 
 	void compute(const cv::Mat& leftImage,
 				 const cv::Mat& rightImage,
-				 float* disparityImage);
+				 float* disparityImage,
+				 const int* pixelDispIdxStart = NULL,
+				 const int* pixelDispIdxNum = NULL);
 
 private:
 	void initialize(const cv::Mat& leftImage, const cv::Mat& rightImage);
@@ -56,14 +60,26 @@ private:
 	void calcRowCosts(unsigned char*& leftSobelRow, int*& leftCensusRow,
 					  unsigned char*& rightSobelRow, int*& rightCensusRow,
 					  unsigned short* costImageRow);
-	void calcPixelwiseSAD(const unsigned char* leftSobelRow, const unsigned char* rightSobelRow);
+	void calcPixelwiseSAD(const unsigned char* leftSobelRow, const unsigned char* rightSobelRow, int rowIdx);
 	void calcHalfPixelRight(const unsigned char* rightSobelRow);
-	void addPixelwiseHamming(const int* leftCensusRow, const int* rightCensusRow);
+	void addPixelwiseHamming(const int* leftCensusRow, const int* rightCensusRow, int rowIdx);
 	void computeRightCostImage();
 	void performSGM(unsigned short* costImage, unsigned short* disparityImage);
 	void speckleFilter(const int maxSpeckleSize, const int maxDifference, unsigned short* image) const;
 	void enforceLeftRightConsistency(unsigned short* leftDisparityImage, unsigned short* rightDisparityImage) const;
 
+	void copy_pixel_disp_range(const int* fromStart, int* toStart,
+                               const int* fromEnd, int* toEnd,
+                               int base = 16);
+	void initialize_pixel_disp_range(int val);
+	int disp_start(int row, int col);
+    int disp_start_max(int row, int col, int m);
+	int disp_end(int row, int col);
+	int disp_end_min(int row, int col, int m);
+	int disp_end_1(int row, int col);
+	int disp_end_1_min(int row, int col, int m);
+	int disp_num(int row, int col);
+	int disp_start_algined(int row, int col, int base = 16);
 
 	// Parameter
 	int disparityTotal_;
@@ -96,4 +112,6 @@ private:
 	int pathCostBufferSize_;
 	int totalBufferSize_;
 	short* sgmBuffer_;
+	int* pixelDispIdxStart_;
+	int* pixelDispIdxEnd_;
 };

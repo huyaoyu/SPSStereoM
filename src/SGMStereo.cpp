@@ -26,6 +26,8 @@
 #include <cmath>
 #include <iostream>
 
+#include "StereoUtils/ArrayOutput.hpp"
+
 #define TO_UCHAR(x) \
     x > 255 ? 255 : x
 
@@ -46,7 +48,8 @@ const int SGMSTEREO_DEFAULT_CONSISTENCY_THRESHOLD = 1;
 
 
 SGMStereo::SGMStereo()
-: disparityTotal_(SGMSTEREO_DEFAULT_DISPARITY_TOTAL),
+: StereoBase(),
+  disparityTotal_(SGMSTEREO_DEFAULT_DISPARITY_TOTAL),
   disparityFactor_(SGMSTEREO_DEFAULT_DISPARITY_FACTOR),
   sobelCapValue_(SGMSTEREO_DEFAULT_SOBEL_CAP_VALUE),
   censusWindowRadius_(SGMSTEREO_DEFAULT_CENSUS_WINDOW_RADIUS),
@@ -62,7 +65,9 @@ SGMStereo::SGMStereo()
   pathRowBufferTotal_(0), disparitySize_(0), pathTotal_(0), pathDisparitySize_(0),
   costSumBufferRowSize_(0), costSumBufferSize_(0), pathMinCostBufferSize_(0), pathCostBufferSize_(0),
   totalBufferSize_(0),
-  sgmBuffer_(NULL) {
+  sgmBuffer_(NULL),
+  pixelDispIdxStart_(NULL), pixelDispIdxEnd_(NULL)
+  {
 
   }
 
@@ -124,17 +129,61 @@ void SGMStereo::setConsistencyThreshold(const int consistencyThreshold) {
 
 void SGMStereo::compute(const cv::Mat& leftImage,
 						const cv::Mat& rightImage,
-						float* disparityImage)
+						float* disparityImage,
+                        const int* pixelDispIdxStart,
+                        const int* pixelDispIdxEnd)
 {
 	initialize(leftImage, rightImage);
 
+	// Check if we have pixel disparity range specification.
+	if ( NULL != pixelDispIdxStart && NULL != pixelDispIdxEnd )
+    {
+	    // Copy the pixel disparity range specification.
+	    copy_pixel_disp_range(pixelDispIdxStart, pixelDispIdxStart_, pixelDispIdxEnd, pixelDispIdxEnd_);
+    }
+	else
+    {
+	    // Initialize pixel disparity range specification to be the how disparity range.
+	    initialize_pixel_disp_range(disparityTotal_);
+    }
+
 	computeCostImage(leftImage, rightImage);
+
+	if ( flagDebug_ )
+    {
+	    write_array_3D(debugWorkingDir_ + "/costImageLeft.dat", leftCostImage_ + 376 * width_ * disparityTotal_,
+	            16, width_, disparityTotal_, 3);
+//        write_array_3D(debugWorkingDir_ + "/costImageLeft.dat", leftCostImage_,
+//                       height_, width_, disparityTotal_, 3);
+//        write_array_3D(debugWorkingDir_ + "/costImageRight.dat", rightCostImage_,
+//                       height_, width_, disparityTotal_, 3);
+    }
 
 	auto leftDisparityImage = reinterpret_cast<unsigned short*>(malloc(width_*height_*sizeof(unsigned short)));
 	performSGM(leftCostImage_, leftDisparityImage);
+
+	if ( flagDebug_ )
+    {
+	    write_array_2D(debugWorkingDir_ + "/leftDisparityImage.dat", leftDisparityImage,
+	            height_, width_, 5);
+    }
+
 	auto rightDisparityImage = reinterpret_cast<unsigned short*>(malloc(width_*height_*sizeof(unsigned short)));
 	performSGM(rightCostImage_, rightDisparityImage);
+
+    if ( flagDebug_ )
+    {
+        write_array_2D(debugWorkingDir_ + "/rightDisparityImage.dat", rightDisparityImage,
+                       height_, width_, 5);
+    }
+
 	enforceLeftRightConsistency(leftDisparityImage, rightDisparityImage);
+
+    if ( flagDebug_ )
+    {
+        write_array_2D(debugWorkingDir_ + "/leftDisparityImageAfterLRC.dat", leftDisparityImage,
+                       height_, width_, 5);
+    }
 
 	for (int y = 0; y < height_; ++y) {
 		for (int x = 0; x < width_; ++x) {
@@ -191,6 +240,14 @@ void SGMStereo::allocateDataBuffer() {
     std::cout << "totalBufferBytes = " << totalBufferBytes << std::endl;
 
 	sgmBuffer_ = reinterpret_cast<short*>(_mm_malloc( totalBufferBytes, 16 ));
+
+	pixelDispIdxStart_ = reinterpret_cast<int*>(
+	        _mm_malloc( static_cast<size_t>(width_)* height_ * disparityTotal_ * sizeof(int), 16 )
+	        );
+
+    pixelDispIdxEnd_ = reinterpret_cast<int*>(
+            _mm_malloc( static_cast<size_t>(width_)* height_ * disparityTotal_ * sizeof(int), 16 )
+    );
 }
 
 void SGMStereo::freeDataBuffer() {
@@ -201,6 +258,8 @@ void SGMStereo::freeDataBuffer() {
 	_mm_free(halfPixelRightMin_);
 	_mm_free(halfPixelRightMax_);
 	_mm_free(sgmBuffer_);
+	_mm_free(pixelDispIdxStart_);
+    _mm_free(pixelDispIdxEnd_);
 }
 
 void SGMStereo::computeCostImage(const cv::Mat& leftImage, const cv::Mat& rightImage) {
@@ -330,14 +389,15 @@ void SGMStereo::calcTopRowCost(unsigned char*& leftSobelRow, int*& leftCensusRow
 		int rowAggregatedCostIndex = std::min(rowIndex, height_ - 1)%(aggregationWindowRadius_*2 + 2);
 		unsigned short* rowAggregatedCostCurrent = rowAggregatedCost_ + rowAggregatedCostIndex*width_*disparityTotal_;
 
-		calcPixelwiseSAD(leftSobelRow, rightSobelRow);
-		addPixelwiseHamming(leftCensusRow, rightCensusRow);
+		calcPixelwiseSAD(leftSobelRow, rightSobelRow, 0);
+		addPixelwiseHamming(leftCensusRow, rightCensusRow, 0);
 
 		memset(rowAggregatedCostCurrent, 0, (size_t)(disparityTotal_)*sizeof(unsigned short));
 		// x = 0
 		for (int x = 0; x <= aggregationWindowRadius_; ++x) {
 			int scale = x == 0 ? aggregationWindowRadius_ + 1 : 1;
-			for (int d = 0; d < disparityTotal_; ++d) {
+//			for (int d = 0; d < disparityTotal_; ++d) {
+            for (int d = disp_start(0, x); d < disp_end_1(0, x); ++d) {
 				rowAggregatedCostCurrent[d] += static_cast<unsigned short>(pixelwiseCostRow_[disparityTotal_*x + d]*scale);
 			}
 		}
@@ -348,7 +408,8 @@ void SGMStereo::calcTopRowCost(unsigned char*& leftSobelRow, int*& leftCensusRow
 			const unsigned char* subPixelwiseCost = pixelwiseCostRow_
 				+ std::max((x - aggregationWindowRadius_ - 1)*disparityTotal_, 0);
 
-			for (int d = 0; d < disparityTotal_; ++d) {
+//			for (int d = 0; d < disparityTotal_; ++d) {
+            for (int d = disp_start(0, x); d < disp_end_1(0, x); ++d) {
 				rowAggregatedCostCurrent[disparityTotal_*x + d]
 					= static_cast<unsigned short>(rowAggregatedCostCurrent[disparityTotal_*(x - 1) + d]
 					+ addPixelwiseCost[d] - subPixelwiseCost[d]);
@@ -381,14 +442,15 @@ void SGMStereo::calcRowCosts(unsigned char*& leftSobelRow, int*& leftCensusRow,
 		unsigned short* addRowAggregatedCost = rowAggregatedCost_ + width_*disparityTotal_*addRowAggregatedCostIndex;
 
 		if (addRowIndex < height_) {
-			calcPixelwiseSAD(leftSobelRow, rightSobelRow);
-			addPixelwiseHamming(leftCensusRow, rightCensusRow);
+			calcPixelwiseSAD(leftSobelRow, rightSobelRow, y);
+			addPixelwiseHamming(leftCensusRow, rightCensusRow, y);
 
 			memset(addRowAggregatedCost, 0, (size_t)(disparityTotal_)*sizeof(unsigned short));
 			// x = 0
 			for (int x = 0; x <= aggregationWindowRadius_; ++x) {
 				int scale = x == 0 ? aggregationWindowRadius_ + 1 : 1;
-				for (int d = 0; d < disparityTotal_; ++d) {
+//				for (int d = 0; d < disparityTotal_; ++d) {
+                for (int d = disp_start(y, x); d < disp_end_1(y, x); ++d) {
 					addRowAggregatedCost[d] += static_cast<unsigned short>(pixelwiseCostRow_[disparityTotal_*x + d]*scale);
 				}
 			}
@@ -402,7 +464,8 @@ void SGMStereo::calcRowCosts(unsigned char*& leftSobelRow, int*& leftCensusRow,
 				const unsigned char* subPixelwiseCost = pixelwiseCostRow_
 					+ std::max((x - aggregationWindowRadius_ - 1)*disparityTotal_, 0);
 
-				for (int d = 0; d < disparityTotal_; d += 16) {
+//				for (int d = 0; d < disparityTotal_; d += 16) {
+                for (int d = disp_start(y, x); d < disp_end_1(y, x); d += 16) {
 					__m128i registerAddPixelwiseLow = _mm_load_si128(reinterpret_cast<const __m128i*>(addPixelwiseCost + d));
 					__m128i registerAddPixelwiseHigh = _mm_unpackhi_epi8(registerAddPixelwiseLow, registerZero);
 					registerAddPixelwiseLow = _mm_unpacklo_epi8(registerAddPixelwiseLow, registerZero);
@@ -444,7 +507,7 @@ void SGMStereo::calcRowCosts(unsigned char*& leftSobelRow, int*& leftCensusRow,
 	}
 }
 
-void SGMStereo::calcPixelwiseSAD(const unsigned char* leftSobelRow, const unsigned char* rightSobelRow) {
+void SGMStereo::calcPixelwiseSAD(const unsigned char* leftSobelRow, const unsigned char* rightSobelRow, int rowIdx) {
 	calcHalfPixelRight(rightSobelRow);
 
 	for (int x = 0; x < 16; ++x) {
@@ -456,7 +519,8 @@ void SGMStereo::calcPixelwiseSAD(const unsigned char* leftSobelRow, const unsign
 		int leftMaxValue = std::max(leftHalfLeftValue, leftHalfRightValue);
 		leftMaxValue = std::max(leftMaxValue, leftCenterValue);
 
-		for (int d = 0; d <= x; ++d) {
+//		for (int d = 0; d <= x; ++d) {
+        for (int d = disp_start(rowIdx, x); d <= disp_end_min(rowIdx, x, x); ++d) {
 			int rightCenterValue = rightSobelRow[width_ - 1 - x + d];
 			int rightMinValue = halfPixelRightMin_[width_ - 1 - x + d];
 			int rightMaxValue = halfPixelRightMax_[width_ - 1 - x + d];
@@ -469,9 +533,14 @@ void SGMStereo::calcPixelwiseSAD(const unsigned char* leftSobelRow, const unsign
 
 			pixelwiseCostRow_[disparityTotal_*x + d] = costValue;
 		}
-		for (int d = x + 1; d < disparityTotal_; ++d) {
-			pixelwiseCostRow_[disparityTotal_*x + d] = pixelwiseCostRow_[disparityTotal_*x + d - 1];
-		}
+
+        if ( disp_end(rowIdx, x) > x )
+        {
+            //		for (int d = x + 1; d < disparityTotal_; ++d) {
+            for (int d = x + 1; d < disp_end_1(rowIdx, x); ++d) {
+                pixelwiseCostRow_[disparityTotal_*x + d] = pixelwiseCostRow_[disparityTotal_*x + d - 1];
+            }
+        }
 	}
 	for (int x = 16; x < disparityTotal_; ++x) {
 		int leftCenterValue = leftSobelRow[x];
@@ -487,7 +556,8 @@ void SGMStereo::calcPixelwiseSAD(const unsigned char* leftSobelRow, const unsign
 		__m128i registerLeftMaxValue = _mm_set1_epi8(static_cast<char>(leftMaxValue));
 
 //		for (int d = 0; d < x/16; d += 16) {
-        for (int d = 0; d < D16(x, int); d += 16) {
+//        for (int d = 0; d < D16(x, int); d += 16) {
+        for (int d = disp_start(rowIdx, x); d < disp_end_1_min(rowIdx, x, D16(x, int)); d += 16) {
 			__m128i registerRightCenterValue = _mm_loadu_si128(reinterpret_cast<const __m128i*>(rightSobelRow + width_ - 1 - x + d));
 			__m128i registerRightMinValue = _mm_loadu_si128(reinterpret_cast<const __m128i*>(halfPixelRightMin_ + width_ - 1 - x + d));
 			__m128i registerRightMaxValue = _mm_loadu_si128(reinterpret_cast<const __m128i*>(halfPixelRightMax_ + width_ - 1 - x + d));
@@ -500,22 +570,32 @@ void SGMStereo::calcPixelwiseSAD(const unsigned char* leftSobelRow, const unsign
 
 			_mm_store_si128(reinterpret_cast<__m128i*>(pixelwiseCostRow_ + disparityTotal_*x + d), registerCost);
 		}
-		for (int d = D16(x, int); d <= x; ++d) {
-			int rightCenterValue = rightSobelRow[width_ - 1 - x + d];
-			int rightMinValue = halfPixelRightMin_[width_ - 1 - x + d];
-			int rightMaxValue = halfPixelRightMax_[width_ - 1 - x + d];
 
-			int costLtoR = std::max(0, leftCenterValue - rightMaxValue);
-			costLtoR = std::max(costLtoR, rightMinValue - leftCenterValue);
-			int costRtoL = std::max(0, rightCenterValue - leftMaxValue);
-			costRtoL = std::max(costRtoL, leftMinValue - rightCenterValue);
-			int costValue = std::min(costLtoR, costRtoL);
+        if ( disp_end(rowIdx, x) >= D16(x, int) )
+        {
+//            for (int d = D16(x, int); d <= x; ++d) {
+            for (int d = D16(x, int); d <= disp_end_min(rowIdx, x, x); ++d) {
+                int rightCenterValue = rightSobelRow[width_ - 1 - x + d];
+                int rightMinValue = halfPixelRightMin_[width_ - 1 - x + d];
+                int rightMaxValue = halfPixelRightMax_[width_ - 1 - x + d];
 
-			pixelwiseCostRow_[disparityTotal_*x + d] = costValue;
-		}
-		for (int d = x + 1; d < disparityTotal_; ++d) {
-			pixelwiseCostRow_[disparityTotal_*x + d] = pixelwiseCostRow_[disparityTotal_*x + d - 1];
-		}
+                int costLtoR = std::max(0, leftCenterValue - rightMaxValue);
+                costLtoR = std::max(costLtoR, rightMinValue - leftCenterValue);
+                int costRtoL = std::max(0, rightCenterValue - leftMaxValue);
+                costRtoL = std::max(costRtoL, leftMinValue - rightCenterValue);
+                int costValue = std::min(costLtoR, costRtoL);
+
+                pixelwiseCostRow_[disparityTotal_*x + d] = costValue;
+            }
+
+            if ( disp_end(rowIdx, x) > x )
+            {
+//                for (int d = x + 1; d < disparityTotal_; ++d) {
+                for (int d = x + 1; d < disp_end_1(rowIdx, x); ++d) {
+                    pixelwiseCostRow_[disparityTotal_*x + d] = pixelwiseCostRow_[disparityTotal_*x + d - 1];
+                }
+            }
+        }
 	}
 	for (int x = disparityTotal_; x < width_; ++x) {
 		int leftCenterValue = leftSobelRow[x];
@@ -530,7 +610,8 @@ void SGMStereo::calcPixelwiseSAD(const unsigned char* leftSobelRow, const unsign
 		__m128i registerLeftMinValue = _mm_set1_epi8(static_cast<char>(leftMinValue));
 		__m128i registerLeftMaxValue = _mm_set1_epi8(static_cast<char>(leftMaxValue));
 
-		for (int d = 0; d < disparityTotal_; d += 16) {
+//		for (int d = 0; d < disparityTotal_; d += 16) {
+        for (int d = disp_start(rowIdx, x); d < disp_end_1(rowIdx, x); d += 16) {
 			__m128i registerRightCenterValue = _mm_loadu_si128(reinterpret_cast<const __m128i*>(rightSobelRow + width_ - 1 - x + d));
 			__m128i registerRightMinValue = _mm_loadu_si128(reinterpret_cast<const __m128i*>(halfPixelRightMin_ + width_ - 1 - x + d));
 			__m128i registerRightMaxValue = _mm_loadu_si128(reinterpret_cast<const __m128i*>(halfPixelRightMax_ + width_ - 1 - x + d));
@@ -561,23 +642,33 @@ void SGMStereo::calcHalfPixelRight(const unsigned char* rightSobelRow) {
 	}
 }
 
-void SGMStereo::addPixelwiseHamming(const int* leftCensusRow, const int* rightCensusRow) {
+void SGMStereo::addPixelwiseHamming(const int* leftCensusRow, const int* rightCensusRow, int rowIdx) {
 	for (int x = 0; x < disparityTotal_; ++x) {
 		int leftCencusCode = leftCensusRow[x];
 		int hammingDistance = 0;
-		for (int d = 0; d <= x; ++d) {
+
+//		for (int d = 0; d <= x; ++d) {
+        for (int d = disp_start(rowIdx, x); d <= disp_end_min(rowIdx, x, x); ++d) {
 			int rightCensusCode = rightCensusRow[x - d];
 			hammingDistance = static_cast<int>(_mm_popcnt_u32(static_cast<unsigned int>(leftCencusCode^rightCensusCode)));
 			pixelwiseCostRow_[disparityTotal_*x + d] += static_cast<unsigned char>(hammingDistance*censusWeightFactor_);
 		}
-		hammingDistance = static_cast<unsigned char>(hammingDistance*censusWeightFactor_);
-		for (int d = x + 1; d < disparityTotal_; ++d) {
-			pixelwiseCostRow_[disparityTotal_*x + d] += hammingDistance;
-		}
+
+        if ( disp_end(rowIdx, x) > x )
+        {
+            hammingDistance = static_cast<unsigned char>(hammingDistance*censusWeightFactor_);
+//            for (int d = x + 1; d < disparityTotal_; ++d) {
+            for (int d = x + 1; d < disp_end_1(rowIdx, x); ++d) {
+                pixelwiseCostRow_[disparityTotal_*x + d] += hammingDistance;
+            }
+        }
 	}
+
 	for (int x = disparityTotal_; x < width_; ++x) {
 		int leftCencusCode = leftCensusRow[x];
-		for (int d = 0; d < disparityTotal_; ++d) {
+
+//		for (int d = 0; d < disparityTotal_; ++d) {
+        for (int d = disp_start(rowIdx, x); d < disp_end_1(rowIdx, x); ++d) {
 			int rightCensusCode = rightCensusRow[x - d];
 			int hammingDistance = static_cast<int>(_mm_popcnt_u32(static_cast<unsigned int>(leftCencusCode^rightCensusCode)));
 			pixelwiseCostRow_[disparityTotal_*x + d] += static_cast<unsigned char>(hammingDistance*censusWeightFactor_);
@@ -595,7 +686,9 @@ void SGMStereo::computeRightCostImage() {
 		for (int x = 0; x < disparityTotal_; ++x) {
 			unsigned short* leftCostPointer = leftCostRow + disparityTotal_*x;
 			unsigned short* rightCostPointer = rightCostRow + disparityTotal_*x;
+
 			for (int d = 0; d <= x; ++d) {
+//            for (int d = disp_start(y, x); d <= disp_end_min(y, x, x); ++d) {
 				*(rightCostPointer) = *(leftCostPointer);
 				rightCostPointer -= disparityTotal_ - 1;
 				++leftCostPointer;
@@ -605,7 +698,9 @@ void SGMStereo::computeRightCostImage() {
 		for (int x = disparityTotal_; x < width_; ++x) {
 			unsigned short* leftCostPointer = leftCostRow + disparityTotal_*x;
 			unsigned short* rightCostPointer = rightCostRow + disparityTotal_*x;
+
 			for (int d = 0; d < disparityTotal_; ++d) {
+//            for (int d = disp_start(y, x); d < disp_end_1(y, x); ++d) {
 				*(rightCostPointer) = *(leftCostPointer);
 				rightCostPointer -= disparityTotal_ - 1;
 				++leftCostPointer;
@@ -614,13 +709,20 @@ void SGMStereo::computeRightCostImage() {
 
 		for (int x = width_ - disparityTotal_ + 1; x < width_; ++x) {
 			int maxDisparityIndex = width_ - x;
-			unsigned short lastValue = *(rightCostRow + disparityTotal_*x + maxDisparityIndex - 1);
 
-			unsigned short* rightCostPointer = rightCostRow + disparityTotal_*x + maxDisparityIndex;
-			for (int d = maxDisparityIndex; d < disparityTotal_; ++d) {
-				*(rightCostPointer) = lastValue;
-				++rightCostPointer;
-			}
+//			if ( maxDisparityIndex >= disp_start(y, x) &&
+//			     maxDisparityIndex <= disp_end(y, x) )
+//            {
+                unsigned short lastValue = *(rightCostRow + disparityTotal_*x + maxDisparityIndex - 1);
+
+                unsigned short* rightCostPointer = rightCostRow + disparityTotal_*x + maxDisparityIndex;
+
+                for (int d = maxDisparityIndex; d < disparityTotal_; ++d) {
+//                for (int d = maxDisparityIndex; d < disp_end_1(y, x); ++d) {
+                    *(rightCostPointer) = lastValue;
+                    ++rightCostPointer;
+                }
+//            }
 		}
 	}
 }
@@ -689,7 +791,8 @@ void SGMStereo::performSGM(unsigned short* costImage, unsigned short* disparityI
 				regPathMin2 = _mm_set1_epi16(static_cast<short>(previousPathMin2));
 				__m128i regNewPathMin = _mm_set1_epi16(costMax);
 
-				for (int d = 0; d < disparityTotal_; d += 8) {
+//				for (int d = 0; d < disparityTotal_; d += 8) {
+                for (int d = disp_start(y, x); d < disp_end_1(y, x); d += 8) {
 					__m128i regPixelCost = _mm_load_si128(reinterpret_cast<const __m128i*>(pixelCostCurrent + d));
 
 					__m128i regPathCost0, regPathCost2;
@@ -742,14 +845,17 @@ void SGMStereo::performSGM(unsigned short* costImage, unsigned short* disparityI
 					short* costSumCurrent = costSumRow + disparityTotal_*x;
 					int bestSumCost = costSumCurrent[0];
 					int bestDisparity = 0;
-					for (int d = 1; d < disparityTotal_; ++d) {
+
+//					for (int d = 1; d < disparityTotal_; ++d) {
+                    for (int d = disp_start_max(y, x, 1); d < disp_end_1(y, x); ++d) {
 						if (costSumCurrent[d] < bestSumCost) {
 							bestSumCost = costSumCurrent[d];
 							bestDisparity = d;
 						}
 					}
 
-					if (bestDisparity > 0 && bestDisparity < disparityTotal_ - 1) {
+//					if (bestDisparity > 0 && bestDisparity < disparityTotal_ - 1) {
+                    if (bestDisparity > disp_start(y, x) && bestDisparity < disp_end(y, x)) {
 						int centerCostValue = costSumCurrent[bestDisparity];
 						int leftCostValue = costSumCurrent[bestDisparity - 1];
 						int rightCostValue = costSumCurrent[bestDisparity + 1];
@@ -888,6 +994,92 @@ void SGMStereo::enforceLeftRightConsistency(unsigned short* leftDisparityImage, 
 			}
 		}
 	}
+}
+
+void SGMStereo::copy_pixel_disp_range(const int* fromStart, int* toStart,
+        const int* fromEnd, int* toEnd, int base)
+{
+    const int n = height_ * width_;
+    int s, e, r;
+
+    for ( int i = 0; i < n; ++i )
+    {
+        s = fromStart[i];
+        r = s % base;
+
+        toStart[i] = s - r;
+
+        e = fromEnd[i];
+
+        if ( e % base > 0 )
+        {
+            toEnd[i] = std::min( ( e / base + 1 ) * base, disparityTotal_ - 1);
+        }
+        else
+        {
+            toEnd[i] = std::min( e, disparityTotal_ - 1 );
+        }
+    }
+}
+
+void SGMStereo::initialize_pixel_disp_range(int val)
+{
+    if ( 0 != val % 16 || val <= 0)
+    {
+        std::stringstream ss;
+        ss << "Wrong val value (" << val << ").";
+        throw std::runtime_error(ss.str());
+    }
+
+    const int n = height_ * width_;
+
+    for ( int i = 0; i < n; ++i )
+    {
+        pixelDispIdxStart_[i] = 0;
+        pixelDispIdxEnd_[i]   = val - 1;
+    }
+}
+
+int SGMStereo::disp_start(int row, int col)
+{
+    return pixelDispIdxStart_[ row*width_ + col ];
+}
+
+int SGMStereo::disp_start_max(int row, int col, int m)
+{
+    return std::max(m, pixelDispIdxStart_[ row*width_ + col ]);
+}
+
+int SGMStereo::disp_end(int row, int col)
+{
+    return pixelDispIdxEnd_[ row*width_ + col ];
+}
+
+int SGMStereo::disp_end_min(int row, int col, int m)
+{
+    return std::min( m, pixelDispIdxEnd_[ row*width_ + col ] );
+}
+
+int SGMStereo::disp_end_1(int row, int col)
+{
+    return pixelDispIdxEnd_[ row*width_ + col ] + 1;
+}
+
+int SGMStereo::disp_end_1_min(int row, int col, int m)
+{
+    return std::min( m, pixelDispIdxEnd_[ row*width_ + col ] + 1 );
+}
+
+int SGMStereo::disp_num(int row, int col)
+{
+    return pixelDispIdxEnd_[ row*width_ + col ] - pixelDispIdxStart_[ row*width_ + col ] + 1;
+}
+
+int SGMStereo::disp_start_algined(int row, int col, int base)
+{
+    const int s = pixelDispIdxStart_[ row*width_ + col ];
+
+    return s - s % base;
 }
 
 #pragma clang diagnostic pop

@@ -45,16 +45,18 @@ const int eightNeighborOffsetX[8] = { -1, -1, 0, 1, 1, 1, 0, -1 };
 const int eightNeighborOffsetY[8] = { 0, -1, -1, -1, 0, 1, 1, 1 };
 
 
-SPSStereo::SPSStereo() : outputDisparityFactor_(SPSSTEREO_DEFAULT_OUTPUT_DISPARITY_FACTOR),
-						 outerIterationTotal_(SPSSTEREO_DEFAULT_OUTER_ITERATION_COUNT),
-						 innerIterationTotal_(SPSSTEREO_DEFAULT_INNER_ITERATION_COUNT),
-						 positionWeight_(SPSSTEREO_DEFAULT_POSITION_WEIGHT),
-						 disparityWeight_(SPSSTEREO_DEFAULT_DISPARITY_WEIGHT),
-						 boundaryLengthWeight_(SPSSTEREO_DEFAULT_BOUNDARY_LENGTH_WEIGHT),
-						 inlierThreshold_(SPSSTEREO_DEFAULT_INLIER_THRESHOLD),
-						 hingePenalty_(SPSSTEREO_DEFAULT_HINGE_PENALTY),
-						 occlusionPenalty_(SPSSTEREO_DEFAULT_OCCLUSION_PENALTY),
-						 impossiblePenalty_(SPSSTEREO_DEFAULT_IMPOSSIBLE_PENALTY)
+SPSStereo::SPSStereo() : StereoBase(),
+ outputDisparityFactor_(SPSSTEREO_DEFAULT_OUTPUT_DISPARITY_FACTOR),
+ outerIterationTotal_(SPSSTEREO_DEFAULT_OUTER_ITERATION_COUNT),
+ innerIterationTotal_(SPSSTEREO_DEFAULT_INNER_ITERATION_COUNT),
+ positionWeight_(SPSSTEREO_DEFAULT_POSITION_WEIGHT),
+ disparityWeight_(SPSSTEREO_DEFAULT_DISPARITY_WEIGHT),
+ boundaryLengthWeight_(SPSSTEREO_DEFAULT_BOUNDARY_LENGTH_WEIGHT),
+ inlierThreshold_(SPSSTEREO_DEFAULT_INLIER_THRESHOLD),
+ hingePenalty_(SPSSTEREO_DEFAULT_HINGE_PENALTY),
+ occlusionPenalty_(SPSSTEREO_DEFAULT_OCCLUSION_PENALTY),
+ impossiblePenalty_(SPSSTEREO_DEFAULT_IMPOSSIBLE_PENALTY),
+ sgmDispairtyTotal_(256)
 {
 	smoothRelativeWeight_ = SPSSTEREO_DEFAULT_SMOOTHNESS_WEIGHT/SPSSTEREO_DEFAULT_DISPARITY_WEIGHT;
 }
@@ -114,7 +116,9 @@ void SPSStereo::compute(const int superpixelTotal,
 						/*png::image<png::gray_pixel_16>*/cv::Mat & segmentImage,
 						/*png::image<png::gray_pixel_16>*/cv::Mat & disparityImage,
 						std::vector< std::vector<double> >& disparityPlaneParameters,
-						std::vector< std::vector<int> >& boundaryLabels)
+						std::vector< std::vector<int> >& boundaryLabels,
+                        const int* pixelDispIdxStart,
+                        const int* pixelDispIdxEnd)
 {
 	if (superpixelTotal < 2) {
 		throw std::invalid_argument("[SPSStereo::compute] the number of superpixels is less than 2");
@@ -127,7 +131,7 @@ void SPSStereo::compute(const int superpixelTotal,
 
 	allocateBuffer();
 
-	setInputData(leftImage, rightImage);
+	setInputData(leftImage, rightImage, pixelDispIdxStart, pixelDispIdxEnd);
 	initializeSegment(superpixelTotal);
 	performSmoothingSegmentation();
 
@@ -155,9 +159,10 @@ void SPSStereo::freeBuffer() {
 	free(boundaryFlagImage_);
 }
 
-void SPSStereo::setInputData(const cv::Mat& leftImage, const cv::Mat & rightImage) {
+void SPSStereo::setInputData(const cv::Mat& leftImage, const cv::Mat & rightImage,
+        const int* pixelDispIdxStart, const int* pixelDispIdxEnd) {
 	setLabImage(leftImage);
-	computeInitialDisparityImage(leftImage, rightImage);
+	computeInitialDisparityImage(leftImage, rightImage, pixelDispIdxStart, pixelDispIdxEnd);
 }
 
 void SPSStereo::setLabImage(const cv::Mat & leftImage) {
@@ -200,9 +205,19 @@ void SPSStereo::setLabImage(const cv::Mat & leftImage) {
 	}
 }
 
-void SPSStereo::computeInitialDisparityImage(const cv::Mat& leftImage, const cv::Mat & rightImage) {
+void SPSStereo::computeInitialDisparityImage(const cv::Mat& leftImage, const cv::Mat & rightImage,
+                                             const int* pixelDispIdxStart,
+                                             const int* pixelDispIdxEnd) {
 	SGMStereo sgm;
-	sgm.compute(leftImage, rightImage, initialDisparityImage_);
+
+	if ( flagDebug_ )
+    {
+	    sgm.enable_debug(debugWorkingDir_);
+    }
+
+	sgm.setDisparityTotal(sgmDispairtyTotal_);
+
+	sgm.compute(leftImage, rightImage, initialDisparityImage_, pixelDispIdxStart, pixelDispIdxEnd);
 }
 
 void SPSStereo::initializeSegment(const int superpixelTotal) {
@@ -981,4 +996,9 @@ void SPSStereo::makeSegmentBoundaryData(std::vector< std::vector<double> >& disp
 		boundaryLabels[boundaryIndex][1] = boundaries_[boundaryIndex].segmentIndex(1);
 		boundaryLabels[boundaryIndex][2] = boundaries_[boundaryIndex].type();
 	}
+}
+
+void SPSStereo::set_SGM_dispairty_total(const int d)
+{
+    sgmDispairtyTotal_ = d;
 }

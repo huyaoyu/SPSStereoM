@@ -21,7 +21,9 @@
 #include <stack>
 #include <opencv2/opencv.hpp>
 
-class SPSStereo {
+#include "StereoBase.hpp"
+
+class SPSStereo : public StereoBase {
 public:
 	SPSStereo();
 
@@ -37,7 +39,11 @@ public:
 				 cv::Mat & segmentImage, //png::image<png::gray_pixel_16>
                  cv::Mat & disparityImage, // png::image<png::gray_pixel_16>
 				 std::vector< std::vector<double> >& disparityPlaneParameters,
-				 std::vector< std::vector<int> >& boundaryLabels);
+				 std::vector< std::vector<int> >& boundaryLabels,
+				 const int* pixelDispIdxStart = NULL,
+				 const int* pixelDispIdxEnd = NULL);
+
+	void set_SGM_dispairty_total(const int d);
 
 private:
 	class Segment {
@@ -181,9 +187,13 @@ private:
 
 	void allocateBuffer();
 	void freeBuffer();
-	void setInputData(const cv::Mat& leftImage, const cv::Mat& rightImage);
+	void setInputData(const cv::Mat& leftImage, const cv::Mat& rightImage,
+	        const int* pixelDispIdxStart = NULL,
+	        const int* pixelDispIdxEnd = NULL);
 	void setLabImage(const cv::Mat& leftImage);
-	void computeInitialDisparityImage(const cv::Mat& leftImage, const cv::Mat& rightImage);
+	void computeInitialDisparityImage(const cv::Mat& leftImage, const cv::Mat& rightImage,
+	        const int* pixelDispIdxStart = NULL,
+	        const int* pixelDispIdxEnd = NULL);
 	void initializeSegment(const int superpixelTotal);
 	void makeGridSegment(const int superpixelTotal);
 	void assignLabel();
@@ -246,4 +256,6 @@ private:
 	unsigned char* boundaryFlagImage_;
 	std::vector<Boundary> boundaries_;
 	std::vector< std::vector<int> > boundaryIndexMatrix_;
+
+	int sgmDispairtyTotal_;
 };

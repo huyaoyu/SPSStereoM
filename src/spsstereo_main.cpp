@@ -23,6 +23,7 @@
 #include <iostream>
 #include <iterator>
 #include <opencv2/opencv.hpp>
+#include <sstream>
 #include <string>
 #include <vector>
 
@@ -42,6 +43,36 @@ void makeSegmentBoundaryImage(const cv::Mat & inputImage,
 							  cv::Mat& segmentBoundaryImage);
 void writeDisparityPlaneFile(const std::vector< std::vector<double> >& disparityPlaneParameters, const std::string outputDisparityPlaneFilename);
 void writeBoundaryLabelFile(const std::vector< std::vector<int> >& boundaryLabels, const std::string outputBoundaryLabelFilename);
+
+void create_disp_range_maps(int startIdx, int endIdx, int rows, int cols, cv::Mat& pixelDispIdxStart, cv::Mat& pixelDispIdxEnd);
+
+template<typename T>
+void read_Q(const std::string& fn, T* array, bool flip=false)
+{
+    // Open the file.
+    std::ifstream ifs(fn);
+
+    if ( !ifs.good() )
+    {
+        std::stringstream ss;
+        ss << "File " << fn << " not good.";
+        throw std::runtime_error(ss.str());
+    }
+
+    for ( int i = 0; i < 16; ++i )
+    {
+        ifs >> array[i];
+    }
+
+    if ( flip )
+    {
+        array[5]  *= -1;
+        array[7]  *= -1;
+        array[11] *= -1;
+    }
+
+    ifs.close();
+}
 
 /**
  * This function is copied from
@@ -101,6 +132,15 @@ int main(int argc, char* argv[]) {
     std::string leftImageFilename = J["images"]["L"];
     std::string rightImageFilename = J["images"]["R"];
 
+    std::string outputBaseFilename;
+
+    // Prepare the filename.
+    boost::filesystem::path leftImageFilenameBoost(leftImageFilename);
+    boost::filesystem::path imageFilename = leftImageFilenameBoost.stem();
+    boost::filesystem::path outputDir = leftImageFilenameBoost.parent_path();
+
+    outputBaseFilename = outputDir.string() + "/" + imageFilename.string();
+
     cv::Mat leftImage;
     cv::Mat disparityImage;
 
@@ -108,7 +148,20 @@ int main(int argc, char* argv[]) {
     leftImage = cv::imread(leftImageFilename, CV_LOAD_IMAGE_COLOR);
     cv::Mat rightImage = cv::imread(rightImageFilename, CV_LOAD_IMAGE_COLOR);
 
+    // Handle disparity range.
+    std::cout << "Minimum disparity: " << J["stereo"]["minDisparity"] << ", "
+              << "Maximum disparity: " << J["stereo"]["maxDisparity"] << std::endl;
+
+    cv::Mat pixelDispIdxStart, pixelDispIdxEnd;
+    create_disp_range_maps(J["stereo"]["minDisparity"], J["stereo"]["maxDisparity"], leftImage.rows, leftImage.cols, pixelDispIdxStart, pixelDispIdxEnd);
+
     SPSStereo sps;
+    if ( true == J["stereo"]["debug"] )
+    {
+        sps.enable_debug(outputDir.string());
+    }
+
+    sps.set_SGM_dispairty_total(static_cast<int>(J["stereo"]["maxDisparity"]) + 1);
     sps.setIterationTotal(outerIterationTotal, innerIterationTotal);
     sps.setWeightParameter(lambda_pos, lambda_depth, lambda_bou, lambda_smo);
     sps.setInlierThreshold(lambda_d);
@@ -118,25 +171,11 @@ int main(int argc, char* argv[]) {
 //        cv::Mat disparityImage;
     std::vector< std::vector<double> > disparityPlaneParameters;
     std::vector< std::vector<int> > boundaryLabels;
-    sps.compute(superpixelTotal, leftImage, rightImage, segmentImage, disparityImage, disparityPlaneParameters, boundaryLabels);
+    sps.compute(superpixelTotal, leftImage, rightImage, segmentImage, disparityImage, disparityPlaneParameters, boundaryLabels,
+            pixelDispIdxStart.ptr<int>(0), pixelDispIdxEnd.ptr<int>(0));
 
     cv::Mat segmentBoundaryImage;
     makeSegmentBoundaryImage(leftImage, segmentImage, boundaryLabels, segmentBoundaryImage);
-
-    std::string outputBaseFilename;
-
-//        outputBaseFilename = leftImageFilename
-//        size_t slashPosition = outputBaseFilename.rfind('/');
-//        if (slashPosition != std::string::npos) outputBaseFilename.erase(0, slashPosition + 1);
-//        size_t dotPosition = outputBaseFilename.rfind('.');
-//        if (dotPosition != std::string::npos) outputBaseFilename.erase(dotPosition);
-
-    // Prepare the filename.
-    boost::filesystem::path leftImageFilenameBoost(leftImageFilename);
-    boost::filesystem::path imageFilename = leftImageFilenameBoost.stem();
-    boost::filesystem::path outputDir = leftImageFilenameBoost.parent_path();
-
-    outputBaseFilename = outputDir.string() + "/" + imageFilename.string();
 
     std::string outputDisparityImageFilename = outputBaseFilename + "_left_disparity.png";
     std::string outputSegmentImageFilename = outputBaseFilename + "_segment.png";
@@ -151,7 +190,7 @@ int main(int argc, char* argv[]) {
     writeBoundaryLabelFile(boundaryLabels, outputBoundaryLabelFilename);
 
     std::cout << "disparityImage.type() = " << disparityImage.type() << "." << std::endl;
-    cv::FileStorage file("disparityImage.yml", cv::FileStorage::WRITE);
+    cv::FileStorage file(outputBaseFilename + "_Disparity.yml", cv::FileStorage::WRITE);
     file << "disparityImage" << disparityImage;
 
     // Output floating point image.
@@ -167,23 +206,21 @@ int main(int argc, char* argv[]) {
     cv::FileStorage fileNormalizedSegmentImage("NormalizedSegmentImage.yml", cv::FileStorage::WRITE);
     fileNormalizedSegmentImage << "normalizedSegmentImage" << normalizedSegmentImage;
 
-    // Test PLY.
+    float rpjMatrix[16];
+//    {
+//            1.0,  0.0,                      0.0, -5.068476486206054688e+02,
+//            0.0,  1.0,                      0.0, -3.699920768737792969e+02,
+//            0.0,  0.0,                      0.0,  1.202625958748662015e+03,
+//            0.0,  0.0, 2.611153635327156941e+00,  0.0
+//    };
 
-    cv::Mat sampleDisp(2, 2, CV_16UC1);
-    sampleDisp.at<uint16_t>(0, 0) = 1;
-    sampleDisp.at<uint16_t>(0, 1) = 2;
-    sampleDisp.at<uint16_t>(1, 0) = 3;
-    sampleDisp.at<uint16_t>(1, 1) = 4;
+    memset( rpjMatrix, 0, 16 * sizeof(float) );
 
-    float rpjMatrix[16] = {
-            1.0,  0.0,                      0.0, -5.068476486206054688e+02,
-            0.0,  1.0,                      0.0, -3.699920768737792969e+02,
-            0.0,  0.0,                      0.0,  1.202625958748662015e+03,
-            0.0,  0.0, 2.611153635327156941e+00,  0.0
-    };
-
-    write_ply<uint16_t, float>("TestPLY_Binary.ply", sampleDisp.ptr<uint16_t>(), 2, 2, rpjMatrix, true);
-    write_ply<uint16_t, float>("TestPLY_Binary.ply", sampleDisp.ptr<uint16_t>(), 2, 2, rpjMatrix, false);
+    // Read the Q matrix.
+    std::string camCalibDir = J["camera"]["calibrationDir"];
+    std::string camQMat     = J["camera"]["Q"];
+    std::cout << "Camera calibration directory: " << camCalibDir << "." << std::endl;
+    read_Q<float>( camCalibDir + "/" + camQMat, rpjMatrix, false );
 
     cv::Mat dispFloat;
     disparityImage.convertTo(dispFloat, CV_32FC1);
@@ -334,4 +371,31 @@ void writeBoundaryLabelFile(const std::vector< std::vector<int> >& boundaryLabel
 		outputFileStream << boundaryLabels[boundaryIndex][2] << std::endl;
 	}
 	outputFileStream.close();
+}
+
+void create_disp_range_maps(int startIdx, int endIdx, int rows, int cols, cv::Mat& pixelDispIdxStart, cv::Mat& pixelDispIdxEnd)
+{
+    if ( startIdx < 0 || endIdx < 0 || startIdx > endIdx)
+    {
+        std::stringstream ss;
+        ss << "startIdx or endIdx is wrong. startIdx = " << startIdx << ", "
+           << "endIdx = " << endIdx << ".";
+        throw std::runtime_error(ss.str());
+    }
+
+    if ( rows < 0 || cols < 0 )
+    {
+        std::stringstream ss;
+        ss << "rows or cols is wrong. rows = " << rows << ", "
+           << "cols = " << cols << ".";
+        throw std::runtime_error(ss.str());
+    }
+
+    // Create Mat.
+    pixelDispIdxStart.create(rows, cols, CV_32SC1);
+    pixelDispIdxEnd.create(rows, cols, CV_32SC1);
+
+    // Set value.
+    pixelDispIdxStart.setTo(cv::Scalar::all(startIdx));
+    pixelDispIdxEnd.setTo(cv::Scalar::all(endIdx));
 }
