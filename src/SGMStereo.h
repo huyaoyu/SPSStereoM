@@ -104,7 +104,7 @@ private:
 	unsigned char* halfPixelRightMax_;
 	size_t pathRowBufferTotal_;
 	size_t disparitySize_;
-	int pathTotal_;
+	size_t pathTotal_;
 	size_t pathDisparitySize_;
 	size_t costSumBufferRowSize_;
 	size_t costSumBufferSize_;

@@ -237,15 +237,18 @@ void SGMStereo::allocateDataBuffer() {
 
 	size_t totalBufferBytes = (size_t)(totalBufferSize_)*sizeof(short);
     
-    std::cout << "height_ = " << height_ << std::endl;
-    std::cout << "width_ = " << width_ << std::endl;
-    std::cout << "disparityTotal_ = " << disparityTotal_ << std::endl;
-    std::cout << "costSumBufferRowSize_ = " << costSumBufferRowSize_ << std::endl;
-    std::cout << "costSumBufferSize_ = " << costSumBufferSize_ << std::endl;
-    std::cout << "pathMinCostBufferSize_ = " << pathMinCostBufferSize_ << std::endl;
-    std::cout << "pathCostBufferSize_ = " << pathCostBufferSize_ << std::endl;
-    std::cout << "totalBufferSize_ = " << totalBufferSize_ << std::endl;
-    std::cout << "totalBufferBytes = " << totalBufferBytes << std::endl;
+	std::cout << "leftCostImage_ = " << leftCostImage_ << std::endl;
+	std::cout << "rightCostImage_ = " << rightCostImage_ << std::endl;
+
+        std::cout << "height_ = " << height_ << std::endl;
+    	std::cout << "width_ = " << width_ << std::endl;
+    	std::cout << "disparityTotal_ = " << disparityTotal_ << std::endl;
+    	std::cout << "costSumBufferRowSize_ = " << costSumBufferRowSize_ << std::endl;
+    	std::cout << "costSumBufferSize_ = " << costSumBufferSize_ << std::endl;
+    	std::cout << "pathMinCostBufferSize_ = " << pathMinCostBufferSize_ << std::endl;
+    	std::cout << "pathCostBufferSize_ = " << pathCostBufferSize_ << std::endl;
+    	std::cout << "totalBufferSize_ = " << totalBufferSize_ << std::endl;
+    	std::cout << "totalBufferBytes = " << totalBufferBytes << std::endl;
 
 	sgmBuffer_ = reinterpret_cast<short*>(_mm_malloc( totalBufferBytes, 16 ));
 
