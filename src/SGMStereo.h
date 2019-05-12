@@ -107,10 +107,10 @@ private:
 	int pathTotal_;
 	int pathDisparitySize_;
 	int costSumBufferRowSize_;
-	int costSumBufferSize_;
+	size_t costSumBufferSize_;
 	int pathMinCostBufferSize_;
-	int pathCostBufferSize_;
-	int totalBufferSize_;
+	size_t pathCostBufferSize_;
+	size_t totalBufferSize_;
 	short* sgmBuffer_;
 	int* pixelDispIdxStart_;
 	int* pixelDispIdxEnd_;
