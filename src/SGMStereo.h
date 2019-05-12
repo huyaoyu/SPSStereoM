@@ -95,20 +95,20 @@ private:
 	// Data
 	int width_;
 	int height_;
-	int widthStep_;
+	size_t widthStep_;
 	unsigned short* leftCostImage_;
 	unsigned short* rightCostImage_;
 	unsigned char* pixelwiseCostRow_;
 	unsigned short* rowAggregatedCost_;
 	unsigned char* halfPixelRightMin_;
 	unsigned char* halfPixelRightMax_;
-	int pathRowBufferTotal_;
-	int disparitySize_;
+	size_t pathRowBufferTotal_;
+	size_t disparitySize_;
 	int pathTotal_;
-	int pathDisparitySize_;
-	int costSumBufferRowSize_;
+	size_t pathDisparitySize_;
+	size_t costSumBufferRowSize_;
 	size_t costSumBufferSize_;
-	int pathMinCostBufferSize_;
+	size_t pathMinCostBufferSize_;
 	size_t pathCostBufferSize_;
 	size_t totalBufferSize_;
 	short* sgmBuffer_;
