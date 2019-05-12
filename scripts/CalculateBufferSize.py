@@ -48,11 +48,11 @@ if __name__ == "__main__":
         sizeTotalBufferByte
 
     # Show the info.
-    print( "sizeLeftCostImage     = %f GB" % ( sizeLeftCostImage / SIZE_GB ) )
-    print( "sizeRightCostImage    = %f GB" % ( sizeRightCostImage / SIZE_GB ) )
-    print( "sizePixelwiseCostRow  = %f GB" % ( sizePixelwiseCostRow / SIZE_GB ) )
-    print( "sizeRowAggrecatedCost = %f GB" % ( sizeRowAggrecatedCost / SIZE_GB ) )
-    print( "sizeHalfPixelRightMin = %f GB" % ( sizeHalfPixelRightMin / SIZE_GB ) )
-    print( "sizeHalfPixelRightMax = %f GB" % ( sizeHalfPixelRightMax / SIZE_GB ) )
-    print( "sizeTotalBufferByte   = %f GB" % ( sizeTotalBufferByte / SIZE_GB ) )
-    print( "total                 = %f GB" % ( total/SIZE_GB ))
+    print( "sizeLeftCostImage     = %d( %f GB )" % ( sizeLeftCostImage, sizeLeftCostImage / SIZE_GB ) )
+    print( "sizeRightCostImage    = %d( %f GB )" % ( sizeRightCostImage, sizeRightCostImage / SIZE_GB ) )
+    print( "sizePixelwiseCostRow  = %d( %f GB )" % ( sizePixelwiseCostRow, sizePixelwiseCostRow / SIZE_GB ) )
+    print( "sizeRowAggrecatedCost = %d( %f GB )" % ( sizeRowAggrecatedCost, sizeRowAggrecatedCost / SIZE_GB ) )
+    print( "sizeHalfPixelRightMin = %d( %f GB )" % ( sizeHalfPixelRightMin, sizeHalfPixelRightMin / SIZE_GB ) )
+    print( "sizeHalfPixelRightMax = %d( %f GB )" % ( sizeHalfPixelRightMax, sizeHalfPixelRightMax / SIZE_GB ) )
+    print( "sizeTotalBufferByte   = %d( %f GB )" % ( sizeTotalBufferByte, sizeTotalBufferByte / SIZE_GB ) )
+    print( "total                 = %d( %f GB )" % ( total, total/SIZE_GB ))

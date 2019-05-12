@@ -439,7 +439,8 @@ void SGMStereo::calcRowCosts(unsigned char*& leftSobelRow, int*& leftCensusRow,
 	for (int y = 1; y < height_; ++y) {
 		int addRowIndex = y + aggregationWindowRadius_;
 		int addRowAggregatedCostIndex = std::min(addRowIndex, height_ - 1)%(aggregationWindowRadius_*2 + 2);
-		unsigned short* addRowAggregatedCost = rowAggregatedCost_ + width_*disparityTotal_*addRowAggregatedCostIndex;
+		unsigned short* addRowAggregatedCost = rowAggregatedCost_ +
+                static_cast<size_t>(width_)*disparityTotal_*addRowAggregatedCostIndex;
 
 		if (addRowIndex < height_) {
 			calcPixelwiseSAD(leftSobelRow, rightSobelRow, y);
