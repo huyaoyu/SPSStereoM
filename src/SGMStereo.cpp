@@ -59,14 +59,14 @@ SGMStereo::SGMStereo()
   smoothnessPenaltyLarge_(SGMSTEREO_DEFAULT_SMOOTHNESS_PENALTY_LARGE),
   consistencyThreshold_(SGMSTEREO_DEFAULT_CONSISTENCY_THRESHOLD),
   width_(0), height_(0), widthStep_(0),
-  leftCostImage_(NULL), rightCostImage_(NULL),
-  pixelwiseCostRow_(NULL), rowAggregatedCost_(NULL),
-  halfPixelRightMin_(NULL), halfPixelRightMax_(NULL),
+  leftCostImage_(nullptr), rightCostImage_(nullptr),
+  pixelwiseCostRow_(nullptr), rowAggregatedCost_(nullptr),
+  halfPixelRightMin_(nullptr), halfPixelRightMax_(nullptr),
   pathRowBufferTotal_(0), disparitySize_(0), pathTotal_(0), pathDisparitySize_(0),
   costSumBufferRowSize_(0), costSumBufferSize_(0), pathMinCostBufferSize_(0), pathCostBufferSize_(0),
   totalBufferSize_(0),
-  sgmBuffer_(NULL),
-  pixelDispIdxStart_(NULL), pixelDispIdxEnd_(NULL)
+  sgmBuffer_(nullptr),
+  pixelDispIdxStart_(nullptr), pixelDispIdxEnd_(nullptr)
   {
 
   }
@@ -93,7 +93,7 @@ void SGMStereo::setDataCostParameters(const int sobelCapValue,
 									  const int aggregationWindowRadius)
 {
 	sobelCapValue_ = std::max(sobelCapValue, 15);
-	sobelCapValue_ = std::min(sobelCapValue_, 127) | 1;
+	sobelCapValue_ = static_cast<unsigned int>( std::min(sobelCapValue_, 127) ) | 1u;
 
 	if (censusWindowRadius < 1 || censusWindowRadius > 2) {
 		throw std::invalid_argument("[SGMStereo::setDataCostParameters] window radius of Census transform must be 1 or 2");
@@ -136,7 +136,7 @@ void SGMStereo::compute(const cv::Mat& leftImage,
 	initialize(leftImage, rightImage);
 
 	// Check if we have pixel disparity range specification.
-	if ( NULL != pixelDispIdxStart && NULL != pixelDispIdxEnd )
+	if ( nullptr != pixelDispIdxStart && nullptr != pixelDispIdxEnd )
     {
 	    // Copy the pixel disparity range specification.
 	    copy_pixel_disp_range(pixelDispIdxStart, pixelDispIdxStart_, pixelDispIdxEnd, pixelDispIdxEnd_);
@@ -262,15 +262,15 @@ void SGMStereo::allocateDataBuffer() {
 }
 
 void SGMStereo::freeDataBuffer() {
-	_mm_free(leftCostImage_);
-	_mm_free(rightCostImage_);
-	_mm_free(pixelwiseCostRow_);
-	_mm_free(rowAggregatedCost_);
-	_mm_free(halfPixelRightMin_);
-	_mm_free(halfPixelRightMax_);
-	_mm_free(sgmBuffer_);
-	_mm_free(pixelDispIdxStart_);
     _mm_free(pixelDispIdxEnd_);
+    _mm_free(pixelDispIdxStart_);
+    _mm_free(sgmBuffer_);
+    _mm_free(halfPixelRightMax_);
+    _mm_free(halfPixelRightMin_);
+    _mm_free(rowAggregatedCost_);
+    _mm_free(pixelwiseCostRow_);
+    _mm_free(rightCostImage_);
+    _mm_free(leftCostImage_);
 }
 
 void SGMStereo::computeCostImage(const cv::Mat& leftImage, const cv::Mat& rightImage) {
@@ -278,7 +278,7 @@ void SGMStereo::computeCostImage(const cv::Mat& leftImage, const cv::Mat& rightI
 	auto rightGrayscaleImage = reinterpret_cast<unsigned char*>(malloc(width_*height_*sizeof(unsigned char)));
 	convertToGrayscale(leftImage, rightImage, leftGrayscaleImage, rightGrayscaleImage);
 
-	memset(leftCostImage_, 0, (size_t)(width_)*height_*disparityTotal_*sizeof(unsigned short));
+	memset(leftCostImage_, 0, static_cast<size_t>(width_)*height_*disparityTotal_*sizeof(unsigned short));
 	computeLeftCostImage(leftGrayscaleImage, rightGrayscaleImage);
 
 	computeRightCostImage();
@@ -316,8 +316,8 @@ void SGMStereo::convertToGrayscale(const cv::Mat& leftImage,
 }
 
 void SGMStereo::computeLeftCostImage(const unsigned char* leftGrayscaleImage, const unsigned char* rightGrayscaleImage) {
-	auto leftSobelImage = reinterpret_cast<unsigned char*>(_mm_malloc( (size_t)(widthStep_)*height_*sizeof(unsigned char), 16 ));
-	auto rightSobelImage = reinterpret_cast<unsigned char*>(_mm_malloc( (size_t)(widthStep_)*height_*sizeof(unsigned char), 16 ));
+	auto leftSobelImage = reinterpret_cast<unsigned char*>(_mm_malloc( static_cast<size_t>(widthStep_)*height_*sizeof(unsigned char), 16 ));
+	auto rightSobelImage = reinterpret_cast<unsigned char*>(_mm_malloc( static_cast<size_t>(widthStep_)*height_*sizeof(unsigned char), 16 ));
 	computeCappedSobelImage(leftGrayscaleImage, false, leftSobelImage);
 	computeCappedSobelImage(rightGrayscaleImage, true, rightSobelImage);
 
@@ -346,7 +346,7 @@ void SGMStereo::computeLeftCostImage(const unsigned char* leftGrayscaleImage, co
 }
 
 void SGMStereo::computeCappedSobelImage(const unsigned char* image, const bool horizontalFlip, unsigned char* sobelImage) const {
-	memset(sobelImage, sobelCapValue_, (size_t)(widthStep_)*height_);
+	memset(sobelImage, sobelCapValue_, static_cast<size_t>(widthStep_)*height_);
 
 	if (horizontalFlip) {
 		for (int y = 1; y < height_ - 1; ++y) {
@@ -381,7 +381,7 @@ void SGMStereo::computeCensusImage(const unsigned char* image, int* censusImage)
 			int censusCode = 0;
 			for (int offsetY = -censusWindowRadius_; offsetY <= censusWindowRadius_; ++offsetY) {
 				for (int offsetX = -censusWindowRadius_; offsetX <= censusWindowRadius_; ++offsetX) {
-					censusCode = censusCode << 1;
+					censusCode = static_cast<unsigned int>(censusCode) << 1u; // NOTE: The original is censusCode = censusCode << 1.
 					if (y + offsetY >= 0 && y + offsetY < height_
 						&& x + offsetX >= 0 && x + offsetX < width_
 						&& image[width_*(y + offsetY) + x + offsetX] >= centerValue) censusCode += 1;
@@ -403,7 +403,7 @@ void SGMStereo::calcTopRowCost(unsigned char*& leftSobelRow, int*& leftCensusRow
 		calcPixelwiseSAD(leftSobelRow, rightSobelRow, 0);
 		addPixelwiseHamming(leftCensusRow, rightCensusRow, 0);
 
-		memset(rowAggregatedCostCurrent, 0, (size_t)(disparityTotal_)*sizeof(unsigned short));
+		memset(rowAggregatedCostCurrent, 0, static_cast<size_t>(disparityTotal_)*sizeof(unsigned short));
 		// x = 0
 		for (int x = 0; x <= aggregationWindowRadius_; ++x) {
 			int scale = x == 0 ? aggregationWindowRadius_ + 1 : 1;
@@ -457,7 +457,7 @@ void SGMStereo::calcRowCosts(unsigned char*& leftSobelRow, int*& leftCensusRow,
 			calcPixelwiseSAD(leftSobelRow, rightSobelRow, y);
 			addPixelwiseHamming(leftCensusRow, rightCensusRow, y);
 
-			memset(addRowAggregatedCost, 0, (size_t)(disparityTotal_)*sizeof(unsigned short));
+			memset(addRowAggregatedCost, 0, static_cast<size_t>(disparityTotal_)*sizeof(unsigned short));
 			// x = 0
 			for (int x = 0; x <= aggregationWindowRadius_; ++x) {
 				int scale = x == 0 ? aggregationWindowRadius_ + 1 : 1;
@@ -654,6 +654,8 @@ void SGMStereo::calcHalfPixelRight(const unsigned char* rightSobelRow) {
 	}
 }
 
+#pragma clang diagnostic push
+#pragma ide diagnostic ignored "hicpp-signed-bitwise"
 void SGMStereo::addPixelwiseHamming(const int* leftCensusRow, const int* rightCensusRow, int rowIdx) {
 	for (int x = 0; x < disparityTotal_; ++x) {
 		int leftCencusCode = leftCensusRow[x];
@@ -687,6 +689,7 @@ void SGMStereo::addPixelwiseHamming(const int* leftCensusRow, const int* rightCe
 		}
 	}
 }
+#pragma clang diagnostic pop
 
 void SGMStereo::computeRightCostImage() {
 	const int widthStepCost = width_*disparityTotal_;
@@ -745,7 +748,7 @@ void SGMStereo::performSGM(unsigned short* costImage, unsigned short* disparityI
 	int widthStepCostImage = width_*disparityTotal_;
 
 	short* costSums = sgmBuffer_;
-	memset(costSums, 0, (size_t)(costSumBufferSize_)*sizeof(short));
+	memset(costSums, 0, static_cast<size_t>(costSumBufferSize_)*sizeof(short));
 
 	auto pathCosts = new short*[pathRowBufferTotal_];
 	auto pathMinCosts = new short*[pathRowBufferTotal_];
@@ -764,20 +767,20 @@ void SGMStereo::performSGM(unsigned short* costImage, unsigned short* disparityI
 
 		for (int i = 0; i < pathRowBufferTotal_; ++i) {
 			pathCosts[i] = costSums + costSumBufferSize_ + pathCostBufferSize_*i + pathDisparitySize_ + 8;
-			memset(pathCosts[i] - pathDisparitySize_ - 8, 0, (size_t)(pathCostBufferSize_)*sizeof(short));
+			memset(pathCosts[i] - pathDisparitySize_ - 8, 0, static_cast<size_t>(pathCostBufferSize_)*sizeof(short));
 			pathMinCosts[i] = costSums + costSumBufferSize_ + pathCostBufferSize_*pathRowBufferTotal_
 				+ pathMinCostBufferSize_*i + pathTotal_*2;
-			memset(pathMinCosts[i] - pathTotal_, 0, (size_t)(pathMinCostBufferSize_)*sizeof(short));
+			memset(pathMinCosts[i] - pathTotal_, 0, static_cast<size_t>(pathMinCostBufferSize_)*sizeof(short));
 		}
 
 		for (int y = startY; y != endY; y += stepY) {
 			unsigned short* pixelCostRow = costImage + widthStepCostImage*y;
 			short* costSumRow = costSums + costSumBufferRowSize_*y;
 
-			memset(pathCosts[0] - pathDisparitySize_ - 8, 0, (size_t)(pathDisparitySize_)*sizeof(short));
-			memset(pathCosts[0] + width_*pathDisparitySize_ - 8, 0, (size_t)(pathDisparitySize_)*sizeof(short));
-			memset(pathMinCosts[0] - pathTotal_, 0, (size_t)(pathTotal_)*sizeof(short));
-			memset(pathMinCosts[0] + width_*pathTotal_, 0, (size_t)(pathTotal_)*sizeof(short));
+			memset(pathCosts[0] - pathDisparitySize_ - 8, 0, static_cast<size_t>(pathDisparitySize_)*sizeof(short));
+			memset(pathCosts[0] + width_*pathDisparitySize_ - 8, 0, static_cast<size_t>(pathDisparitySize_)*sizeof(short));
+			memset(pathMinCosts[0] - pathTotal_, 0, static_cast<size_t>(pathTotal_)*sizeof(short));
+			memset(pathMinCosts[0] + width_*pathTotal_, 0, static_cast<size_t>(pathTotal_)*sizeof(short));
 
 			for (int x = startX; x != endX; x += stepX) {
 				int pathMinX = x*pathTotal_;
@@ -872,11 +875,11 @@ void SGMStereo::performSGM(unsigned short* costImage, unsigned short* disparityI
 						int leftCostValue = costSumCurrent[bestDisparity - 1];
 						int rightCostValue = costSumCurrent[bestDisparity + 1];
 						if (rightCostValue < leftCostValue) {
-							bestDisparity = static_cast<int>(bestDisparity*disparityFactor_
-															 + static_cast<double>(rightCostValue - leftCostValue)/(centerCostValue - leftCostValue)/2.0*disparityFactor_ + 0.5);
+							bestDisparity = static_cast<int>( lround( bestDisparity*disparityFactor_
+															 + static_cast<double>(rightCostValue - leftCostValue)/(centerCostValue - leftCostValue)/2.0*disparityFactor_ + 0.5 ) );
 						} else {
-							bestDisparity = static_cast<int>(bestDisparity*disparityFactor_
-															 + static_cast<double>(rightCostValue - leftCostValue)/(centerCostValue - rightCostValue)/2.0*disparityFactor_ + 0.5);
+							bestDisparity = static_cast<int>( lround( bestDisparity*disparityFactor_
+															 + static_cast<double>(rightCostValue - leftCostValue)/(centerCostValue - rightCostValue)/2.0*disparityFactor_ + 0.5 ) );
 						}
 					} else {
 						bestDisparity = static_cast<int>(bestDisparity*disparityFactor_);
@@ -976,13 +979,13 @@ void SGMStereo::enforceLeftRightConsistency(unsigned short* leftDisparityImage, 
 		for (int x = 0; x < width_; ++x) {
 			if (leftDisparityImage[width_*y + x] == 0) continue;
 
-			auto leftDisparityValue = static_cast<int>(static_cast<double>(leftDisparityImage[width_*y + x])/disparityFactor_ + 0.5);
+			auto leftDisparityValue = static_cast<int>( lround( static_cast<double>(leftDisparityImage[width_*y + x])/disparityFactor_ + 0.5 ) );
 			if (x - leftDisparityValue < 0) {
 				leftDisparityImage[width_*y + x] = 0;
 				continue;
 			}
 
-			auto rightDisparityValue = static_cast<int>(static_cast<double>(rightDisparityImage[width_*y + x-leftDisparityValue])/disparityFactor_ + 0.5);
+			auto rightDisparityValue = static_cast<int>( lround( static_cast<double>(rightDisparityImage[width_*y + x-leftDisparityValue])/disparityFactor_ + 0.5 ) );
 			if (rightDisparityValue == 0 || abs(leftDisparityValue - rightDisparityValue) > consistencyThreshold_) {
 				leftDisparityImage[width_*y + x] = 0;
 			}
@@ -994,13 +997,13 @@ void SGMStereo::enforceLeftRightConsistency(unsigned short* leftDisparityImage, 
 		for (int x = 0; x < width_; ++x) {
 			if (rightDisparityImage[width_*y + x] == 0)  continue;
 
-			auto rightDisparityValue = static_cast<int>(static_cast<double>(rightDisparityImage[width_*y + x])/disparityFactor_ + 0.5);
+			auto rightDisparityValue = static_cast<int>( lround( static_cast<double>(rightDisparityImage[width_*y + x])/disparityFactor_ + 0.5 ) );
 			if (x + rightDisparityValue >= width_) {
 				rightDisparityImage[width_*y + x] = 0;
 				continue;
 			}
 
-			auto leftDisparityValue = static_cast<int>(static_cast<double>(leftDisparityImage[width_*y + x+rightDisparityValue])/disparityFactor_ + 0.5);
+			auto leftDisparityValue = static_cast<int>( lround( static_cast<double>(leftDisparityImage[width_*y + x+rightDisparityValue])/disparityFactor_ + 0.5 ) );
 			if (leftDisparityValue == 0 || abs(rightDisparityValue - leftDisparityValue) > consistencyThreshold_) {
 				rightDisparityImage[width_*y + x] = 0;
 			}
@@ -1043,12 +1046,13 @@ void SGMStereo::initialize_pixel_disp_range(int val)
         throw std::runtime_error(ss.str());
     }
 
-    const int n = height_ * width_;
+    const int n    = height_ * width_;
+    const int maxD = val - 1;
 
     for ( int i = 0; i < n; ++i )
     {
         pixelDispIdxStart_[i] = 0;
-        pixelDispIdxEnd_[i]   = val - 1;
+        pixelDispIdxEnd_[i]   = maxD;
     }
 }
 
