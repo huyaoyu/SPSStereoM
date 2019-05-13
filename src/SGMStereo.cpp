@@ -219,10 +219,10 @@ void SGMStereo::allocateDataBuffer() {
 	int rowAggregatedCostBufferSize = width_*disparityTotal_*(aggregationWindowRadius_*2 + 2);
 	int halfPixelRightBufferSize = widthStep_;
 
-	pixelwiseCostRow_ = reinterpret_cast<unsigned char*>(_mm_malloc( (size_t)(pixelwiseCostRowBufferSize)*sizeof(unsigned char), 16 ));
+	pixelwiseCostRow_  = reinterpret_cast<unsigned char*>( _mm_malloc( (size_t)(pixelwiseCostRowBufferSize)*sizeof(unsigned char), 16 ));
 	rowAggregatedCost_ = reinterpret_cast<unsigned short*>(_mm_malloc( (size_t)(rowAggregatedCostBufferSize)*sizeof(unsigned short), 16 ));
-	halfPixelRightMin_ = reinterpret_cast<unsigned char*>(_mm_malloc( (size_t)(halfPixelRightBufferSize)*sizeof(unsigned char), 16 ));
-	halfPixelRightMax_ = reinterpret_cast<unsigned char*>(_mm_malloc( (size_t)(halfPixelRightBufferSize)*sizeof(unsigned char), 16 ));
+	halfPixelRightMin_ = reinterpret_cast<unsigned char*>( _mm_malloc( (size_t)(halfPixelRightBufferSize)*sizeof(unsigned char), 16 ));
+	halfPixelRightMax_ = reinterpret_cast<unsigned char*>( _mm_malloc( (size_t)(halfPixelRightBufferSize)*sizeof(unsigned char), 16 ));
 
 	pathRowBufferTotal_ = 2;
 	disparitySize_ = disparityTotal_ + 16;
@@ -316,19 +316,21 @@ void SGMStereo::convertToGrayscale(const cv::Mat& leftImage,
 }
 
 void SGMStereo::computeLeftCostImage(const unsigned char* leftGrayscaleImage, const unsigned char* rightGrayscaleImage) {
-	auto leftSobelImage = reinterpret_cast<unsigned char*>(_mm_malloc( static_cast<size_t>(widthStep_)*height_*sizeof(unsigned char), 16 ));
+	auto leftSobelImage  = reinterpret_cast<unsigned char*>(_mm_malloc( static_cast<size_t>(widthStep_)*height_*sizeof(unsigned char), 16 ));
 	auto rightSobelImage = reinterpret_cast<unsigned char*>(_mm_malloc( static_cast<size_t>(widthStep_)*height_*sizeof(unsigned char), 16 ));
+
 	computeCappedSobelImage(leftGrayscaleImage, false, leftSobelImage);
 	computeCappedSobelImage(rightGrayscaleImage, true, rightSobelImage);
 
-	auto leftCensusImage = reinterpret_cast<int*>(malloc(width_*height_*sizeof(int)));
+	auto leftCensusImage  = reinterpret_cast<int*>(malloc(width_*height_*sizeof(int)));
 	auto rightCensusImage = reinterpret_cast<int*>(malloc(width_*height_*sizeof(int)));
-	computeCensusImage(leftGrayscaleImage, leftCensusImage);
+
+	computeCensusImage(leftGrayscaleImage,  leftCensusImage);
 	computeCensusImage(rightGrayscaleImage, rightCensusImage);
 
-	unsigned char* leftSobelRow = leftSobelImage;
+	unsigned char* leftSobelRow  = leftSobelImage;
 	unsigned char* rightSobelRow = rightSobelImage;
-	int* leftCensusRow = leftCensusImage;
+	int* leftCensusRow  = leftCensusImage;
 	int* rightCensusRow = rightCensusImage;
 	unsigned short* costImageRow = leftCostImage_;
 	calcTopRowCost(leftSobelRow, leftCensusRow,
@@ -397,11 +399,11 @@ void SGMStereo::calcTopRowCost(unsigned char*& leftSobelRow, int*& leftCensusRow
 							   unsigned short* costImageRow)
 {
 	for (int rowIndex = 0; rowIndex <= aggregationWindowRadius_; ++rowIndex) {
-		int rowAggregatedCostIndex = std::min(rowIndex, height_ - 1)%(aggregationWindowRadius_*2 + 2);
+		size_t rowAggregatedCostIndex = std::min(rowIndex, height_ - 1)%(aggregationWindowRadius_*2 + 2);
 		unsigned short* rowAggregatedCostCurrent = rowAggregatedCost_ + rowAggregatedCostIndex*width_*disparityTotal_;
 
-		calcPixelwiseSAD(leftSobelRow, rightSobelRow, 0);
-		addPixelwiseHamming(leftCensusRow, rightCensusRow, 0);
+		calcPixelwiseSAD(leftSobelRow, rightSobelRow, rowIndex); // NOTE: The last argument was 0.
+		addPixelwiseHamming(leftCensusRow, rightCensusRow, rowIndex); // NOTE: The last argument was 0.
 
 		memset(rowAggregatedCostCurrent, 0, static_cast<size_t>(disparityTotal_)*sizeof(unsigned short));
 		// x = 0
@@ -433,9 +435,9 @@ void SGMStereo::calcTopRowCost(unsigned char*& leftSobelRow, int*& leftCensusRow
 			costImageRow[i] += rowAggregatedCostCurrent[i]*scale;
 		}
 
-		leftSobelRow += widthStep_;
-		rightSobelRow += widthStep_;
-		leftCensusRow += width_;
+		leftSobelRow   += widthStep_;
+		rightSobelRow  += widthStep_;
+		leftCensusRow  += width_;
 		rightCensusRow += width_;
 	}
 }
@@ -444,7 +446,7 @@ void SGMStereo::calcRowCosts(unsigned char*& leftSobelRow, int*& leftCensusRow,
 							 unsigned char*& rightSobelRow, int*& rightCensusRow,
 							 unsigned short* costImageRow)
 {
-	const int widthStepCost = width_*disparityTotal_;
+	const size_t widthStepCost = width_*disparityTotal_;
 	const __m128i registerZero = _mm_setzero_si128();
 
 	for (int y = 1; y < height_; ++y) {
@@ -467,9 +469,10 @@ void SGMStereo::calcRowCosts(unsigned char*& leftSobelRow, int*& leftCensusRow,
 				}
 			}
 			// x = 1...width-1
-			int subRowAggregatedCostIndex = std::max(y - aggregationWindowRadius_ - 1, 0)%(aggregationWindowRadius_*2 + 2);
-			const unsigned short* subRowAggregatedCost = rowAggregatedCost_ + width_*disparityTotal_*subRowAggregatedCostIndex;
+			size_t subRowAggregatedCostIndex = std::max(y - aggregationWindowRadius_ - 1, 0)%(aggregationWindowRadius_*2 + 2);
+			const unsigned short* subRowAggregatedCost = rowAggregatedCost_ + subRowAggregatedCostIndex * width_ * disparityTotal_;
 			const unsigned short* previousCostRow = costImageRow - widthStepCost;
+
 			for (int x = 1; x < width_; ++x) {
 				const unsigned char* addPixelwiseCost = pixelwiseCostRow_
 					+ std::min((x + aggregationWindowRadius_)*disparityTotal_, (width_ - 1)*disparityTotal_);
@@ -511,11 +514,11 @@ void SGMStereo::calcRowCosts(unsigned char*& leftSobelRow, int*& leftCensusRow,
 			}
 		}
 
-		leftSobelRow += widthStep_;
-		rightSobelRow += widthStep_;
-		leftCensusRow += width_;
+		leftSobelRow   += widthStep_;
+		rightSobelRow  += widthStep_;
+		leftCensusRow  += width_;
 		rightCensusRow += width_;
-		costImageRow += widthStepCost;
+		costImageRow   += widthStepCost;
 	}
 }
 
@@ -692,7 +695,7 @@ void SGMStereo::addPixelwiseHamming(const int* leftCensusRow, const int* rightCe
 #pragma clang diagnostic pop
 
 void SGMStereo::computeRightCostImage() {
-	const int widthStepCost = width_*disparityTotal_;
+	const size_t widthStepCost = width_*disparityTotal_;
 
 	for (int y = 0; y < height_; ++y) {
 		unsigned short* leftCostRow = leftCostImage_ + widthStepCost*y;
@@ -745,7 +748,7 @@ void SGMStereo::computeRightCostImage() {
 void SGMStereo::performSGM(unsigned short* costImage, unsigned short* disparityImage) {
 	const short costMax = SHRT_MAX;
 
-	int widthStepCostImage = width_*disparityTotal_;
+	const size_t widthStepCostImage = width_*disparityTotal_;
 
 	short* costSums = sgmBuffer_;
 	memset(costSums, 0, static_cast<size_t>(costSumBufferSize_)*sizeof(short));
@@ -783,8 +786,8 @@ void SGMStereo::performSGM(unsigned short* costImage, unsigned short* disparityI
 			memset(pathMinCosts[0] + width_*pathTotal_, 0, static_cast<size_t>(pathTotal_)*sizeof(short));
 
 			for (int x = startX; x != endX; x += stepX) {
-				int pathMinX = x*pathTotal_;
-				int pathX = pathMinX*disparitySize_;
+				size_t pathMinX = x*pathTotal_;
+				size_t pathX = pathMinX*disparitySize_;
 
 				int previousPathMin0 = pathMinCosts[0][pathMinX - stepX*pathTotal_] + smoothnessPenaltyLarge_;
 				int previousPathMin2 = pathMinCosts[1][pathMinX + 2] + smoothnessPenaltyLarge_;
@@ -893,8 +896,9 @@ void SGMStereo::performSGM(unsigned short* costImage, unsigned short* disparityI
 			std::swap(pathMinCosts[0], pathMinCosts[1]);
 		}
 	}
-	delete[] pathCosts;
+
 	delete[] pathMinCosts;
+    delete[] pathCosts;
 
 	speckleFilter(100, static_cast<int>(2*disparityFactor_), disparityImage);
 }
