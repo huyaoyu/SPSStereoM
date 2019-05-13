@@ -17,6 +17,7 @@
 
 #include <boost/filesystem.hpp>
 #include <boost/program_options.hpp>
+#include <boost/date_time/posix_time/posix_time.hpp>
 
 #include <algorithm>
 #include <fstream>
@@ -35,7 +36,8 @@
 #include "StereoUtils/ImageOutput.hpp"
 #include "StereoUtils/PLY.hpp"
 
-namespace po = boost::program_options;
+namespace bpo = boost::program_options;
+namespace bpt = boost::posix_time;
 
 void makeSegmentBoundaryImage(const cv::Mat & inputImage,
 							  const /*png::image<png::gray_pixel_16>*/ cv::Mat & segmentImage,
@@ -95,18 +97,18 @@ int main(int argc, char* argv[]) {
 
     try
     {
-        po::options_description optDesc("Allowed options");
+        bpo::options_description optDesc("Allowed options");
         optDesc.add_options()
                 ("help", "produce help message")
-                ("input-file", po::value< std::string >(&inputJSON), "input file");
+                ("input-file", bpo::value< std::string >(&inputJSON), "input file");
 
-        po::positional_options_description posOptDesc;
+        bpo::positional_options_description posOptDesc;
         posOptDesc.add("input-file", -1);
 
-        po::variables_map optVM;
-        po::store(po::command_line_parser(argc, argv).
+        bpo::variables_map optVM;
+        bpo::store(bpo::command_line_parser(argc, argv).
                 options(optDesc).positional(posOptDesc).run(), optVM);
-        po::notify(optVM);
+        bpo::notify(optVM);
 
 //        if ( optVM.count("input-file") )
 //        {
@@ -171,8 +173,16 @@ int main(int argc, char* argv[]) {
 //        cv::Mat disparityImage;
     std::vector< std::vector<double> > disparityPlaneParameters;
     std::vector< std::vector<int> > boundaryLabels;
+
+    bpt::ptime start = bpt::microsec_clock::universal_time();
+
     sps.compute(superpixelTotal, leftImage, rightImage, segmentImage, disparityImage, disparityPlaneParameters, boundaryLabels,
             pixelDispIdxStart.ptr<int>(0), pixelDispIdxEnd.ptr<int>(0));
+
+    bpt::ptime end =  bpt::microsec_clock::universal_time();
+    bpt::time_duration td = end - start;
+
+    std::cout <<  "Total time of sps.compute(): "  << td.total_milliseconds() <<  " ms."  << std::endl;
 
     cv::Mat segmentBoundaryImage;
     makeSegmentBoundaryImage(leftImage, segmentImage, boundaryLabels, segmentBoundaryImage);

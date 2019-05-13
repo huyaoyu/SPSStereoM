@@ -151,7 +151,7 @@ void SGMStereo::compute(const cv::Mat& leftImage,
 
 	if ( flagDebug_ )
     {
-	    write_array_3D(debugWorkingDir_ + "/costImageLeft.dat", leftCostImage_ + 376 * width_ * disparityTotal_,
+	    write_array_3D(debugWorkingDir_ + "/costImageLeft.dat", leftCostImage_ + 376 * static_cast<size_t>(width_) * disparityTotal_,
 	            16, width_, disparityTotal_, 3);
 //        write_array_3D(debugWorkingDir_ + "/costImageLeft.dat", leftCostImage_,
 //                       height_, width_, disparityTotal_, 3);
@@ -212,17 +212,17 @@ void SGMStereo::setImageSize(const cv::Mat& leftImage, const cv::Mat& rightImage
 }
 
 void SGMStereo::allocateDataBuffer() {
-	leftCostImage_ = reinterpret_cast<unsigned short*>(_mm_malloc( (size_t)(width_) *height_*disparityTotal_*sizeof(unsigned short), 16 ));
-	rightCostImage_ = reinterpret_cast<unsigned short*>(_mm_malloc( (size_t)(width_)*height_*disparityTotal_*sizeof(unsigned short), 16 ));
+	leftCostImage_ = reinterpret_cast<unsigned short*>(_mm_malloc( static_cast<size_t>(width_) *height_*disparityTotal_*sizeof(unsigned short), 16 ));
+	rightCostImage_ = reinterpret_cast<unsigned short*>(_mm_malloc( static_cast<size_t>(width_)*height_*disparityTotal_*sizeof(unsigned short), 16 ));
 
 	int pixelwiseCostRowBufferSize = width_*disparityTotal_;
 	int rowAggregatedCostBufferSize = width_*disparityTotal_*(aggregationWindowRadius_*2 + 2);
 	int halfPixelRightBufferSize = widthStep_;
 
-	pixelwiseCostRow_  = reinterpret_cast<unsigned char*>( _mm_malloc( (size_t)(pixelwiseCostRowBufferSize)*sizeof(unsigned char), 16 ));
-	rowAggregatedCost_ = reinterpret_cast<unsigned short*>(_mm_malloc( (size_t)(rowAggregatedCostBufferSize)*sizeof(unsigned short), 16 ));
-	halfPixelRightMin_ = reinterpret_cast<unsigned char*>( _mm_malloc( (size_t)(halfPixelRightBufferSize)*sizeof(unsigned char), 16 ));
-	halfPixelRightMax_ = reinterpret_cast<unsigned char*>( _mm_malloc( (size_t)(halfPixelRightBufferSize)*sizeof(unsigned char), 16 ));
+	pixelwiseCostRow_  = reinterpret_cast<unsigned char*>( _mm_malloc( static_cast<size_t>(pixelwiseCostRowBufferSize)*sizeof(unsigned char), 16 ));
+	rowAggregatedCost_ = reinterpret_cast<unsigned short*>(_mm_malloc( static_cast<size_t>(rowAggregatedCostBufferSize)*sizeof(unsigned short), 16 ));
+	halfPixelRightMin_ = reinterpret_cast<unsigned char*>( _mm_malloc( static_cast<size_t>(halfPixelRightBufferSize)*sizeof(unsigned char), 16 ));
+	halfPixelRightMax_ = reinterpret_cast<unsigned char*>( _mm_malloc( static_cast<size_t>(halfPixelRightBufferSize)*sizeof(unsigned char), 16 ));
 
 	pathRowBufferTotal_ = 2;
 	disparitySize_ = disparityTotal_ + 16;
@@ -235,7 +235,7 @@ void SGMStereo::allocateDataBuffer() {
 	pathCostBufferSize_ = pathMinCostBufferSize_*disparitySize_;
 	totalBufferSize_ = (pathMinCostBufferSize_ + pathCostBufferSize_)*pathRowBufferTotal_ + costSumBufferSize_ + 16;
 
-	size_t totalBufferBytes = (size_t)(totalBufferSize_)*sizeof(short);
+	size_t totalBufferBytes = static_cast<size_t>(totalBufferSize_)*sizeof(short);
     
 	std::cout << "leftCostImage_ = " << leftCostImage_ << std::endl;
 	std::cout << "rightCostImage_ = " << rightCostImage_ << std::endl;
@@ -253,11 +253,11 @@ void SGMStereo::allocateDataBuffer() {
 	sgmBuffer_ = reinterpret_cast<short*>(_mm_malloc( totalBufferBytes, 16 ));
 
 	pixelDispIdxStart_ = reinterpret_cast<int*>(
-	        _mm_malloc( static_cast<size_t>(width_)* height_ * disparityTotal_ * sizeof(int), 16 )
+	        _mm_malloc( static_cast<size_t>(width_)* height_ * sizeof(int), 16 )
 	        );
 
     pixelDispIdxEnd_ = reinterpret_cast<int*>(
-            _mm_malloc( static_cast<size_t>(width_)* height_ * disparityTotal_ * sizeof(int), 16 )
+            _mm_malloc( static_cast<size_t>(width_)* height_ * sizeof(int), 16 )
     );
 }
 
@@ -1019,7 +1019,7 @@ void SGMStereo::copy_pixel_disp_range(const int* fromStart, int* toStart,
         const int* fromEnd, int* toEnd, int base)
 {
     const int n = height_ * width_;
-    int s, e, r;
+    int s, e, r; // Start, end, reminder.
 
     for ( int i = 0; i < n; ++i )
     {
