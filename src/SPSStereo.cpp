@@ -216,6 +216,7 @@ void SPSStereo::computeInitialDisparityImage(const cv::Mat& leftImage, const cv:
     }
 
 	sgm.setDisparityTotal(sgmDispairtyTotal_);
+    sgm.setDisparityFactor(32);
 
 	sgm.compute(leftImage, rightImage, initialDisparityImage_, pixelDispIdxStart, pixelDispIdxEnd);
 }
