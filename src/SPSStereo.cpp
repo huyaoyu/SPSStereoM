@@ -56,7 +56,8 @@ SPSStereo::SPSStereo() : StereoBase(),
  hingePenalty_(SPSSTEREO_DEFAULT_HINGE_PENALTY),
  occlusionPenalty_(SPSSTEREO_DEFAULT_OCCLUSION_PENALTY),
  impossiblePenalty_(SPSSTEREO_DEFAULT_IMPOSSIBLE_PENALTY),
- sgmDispairtyTotal_(256)
+ sgmDisparityTotal_(256),
+ sgmMode_(ORI_SGM)
 {
 	smoothRelativeWeight_ = SPSSTEREO_DEFAULT_SMOOTHNESS_WEIGHT/SPSSTEREO_DEFAULT_DISPARITY_WEIGHT;
 }
@@ -162,7 +163,8 @@ void SPSStereo::freeBuffer() {
 void SPSStereo::setInputData(const cv::Mat& leftImage, const cv::Mat & rightImage,
         const int* pixelDispIdxStart, const int* pixelDispIdxEnd) {
 	setLabImage(leftImage);
-	computeInitialDisparityImage(leftImage, rightImage, pixelDispIdxStart, pixelDispIdxEnd);
+
+	computeInitialDisparityImage(leftImage, rightImage, pixelDispIdxStart, pixelDispIdxEnd, sgmMode_);
 }
 
 void SPSStereo::setLabImage(const cv::Mat & leftImage) {
@@ -205,20 +207,95 @@ void SPSStereo::setLabImage(const cv::Mat & leftImage) {
 	}
 }
 
-void SPSStereo::computeInitialDisparityImage(const cv::Mat& leftImage, const cv::Mat & rightImage,
-                                             const int* pixelDispIdxStart,
-                                             const int* pixelDispIdxEnd) {
-	SGMStereo sgm;
+static void ocv_stereo_reconstruction(const cv::Mat& img0, const cv::Mat& img1,
+                           const int minD, const int maxD, float* disp)
+{
+    // Check if the minD and maxD are appropriate.
 
-	if ( flagDebug_ )
+    if ( minD >= maxD )
     {
-	    sgm.enable_debug(debugWorkingDir_);
+        std::stringstream ss;
+        ss << "minD (" << minD << ") or maxD (" << maxD << ") is not right.";
+        throw std::runtime_error(ss.str());
     }
 
-	sgm.setDisparityTotal(sgmDispairtyTotal_);
-    sgm.setDisparityFactor(32);
+    if ( 0 != ( maxD - minD + 1 ) % 16 )
+    {
+        std::stringstream ss;
+        ss << "The number of disparities (" << maxD - minD + 1 << ") is not integer times of 16. "
+           << "Pleas check the values of minD (" << minD << ") and maxD (" << maxD << ").";
+        throw std::runtime_error(ss.str());
+    }
 
-	sgm.compute(leftImage, rightImage, initialDisparityImage_, pixelDispIdxStart, pixelDispIdxEnd);
+    // Create OpenCV SGBM object.
+    cv::Ptr<cv::StereoSGBM> matcher = cv::StereoSGBM::create(
+            minD, maxD - minD + 1, /* min and num of disparities */
+            3, /* block size */
+            100, 500, /* P1, P2 */
+            1, /* disp12MaxDiff */
+            31, 5, /* preFilterCap and uniqueness ratio */
+            250, 2, /* speckle window size and range */
+            cv::StereoSGBM::MODE_SGBM
+    );
+
+    // Compute the disparity.
+    cv::Mat tempDisp, dispF;
+    matcher->compute(img0, img1, tempDisp);
+
+    tempDisp.convertTo(dispF, CV_32FC1);
+
+    dispF = dispF / 16.0f;
+
+    // Copy values into disp;
+    float* pRow = nullptr;
+    size_t pos = 0;
+
+    for ( int i = 0; i < dispF.rows; ++i )
+    {
+        pRow = dispF.ptr<float>(i);
+
+        for ( int j = 0; j < dispF.cols; ++j )
+        {
+            disp[pos] = pRow[j];
+            pos++;
+        }
+    }
+}
+
+void SPSStereo::computeInitialDisparityImage(const cv::Mat& leftImage, const cv::Mat & rightImage,
+                                             const int* pixelDispIdxStart,
+                                             const int* pixelDispIdxEnd, const SGMMode_t mode) {
+    switch(mode)
+    {
+        case ORI_SGM:
+        {
+            SGMStereo sgm;
+
+            if ( flagDebug_ )
+            {
+                sgm.enable_debug(debugWorkingDir_);
+            }
+
+            sgm.setDisparityTotal(sgmDisparityTotal_);
+            sgm.setDisparityFactor(32);
+
+            sgm.compute(leftImage, rightImage, initialDisparityImage_, pixelDispIdxStart, pixelDispIdxEnd);
+
+            break;
+        }
+        case OCV_SGM:
+        {
+            std::cout << "Compute the initial disparity with OpenCV SGBM implementation." << std::endl;
+            ocv_stereo_reconstruction(leftImage, rightImage, sgmDisparityMin_, sgmDisparityTotal_-1, initialDisparityImage_);
+            break;
+        }
+        default:
+        {
+            std::stringstream ss;
+            ss << "Unexpected mode (" << mode << ").";
+            throw std::runtime_error(ss.str());
+        }
+    }
 }
 
 void SPSStereo::initializeSegment(const int superpixelTotal) {
@@ -970,8 +1047,8 @@ void SPSStereo::makeOutputImageF(/*png::image<png::gray_pixel_16>*/ cv::Mat & se
             int pixelSegmentIndex = labelImage_[width_*y + x];
             segmentImage.at<uint16_t>(y, x) = pixelSegmentIndex;
             double estimatedDisparity = segments_[pixelSegmentIndex].estimatedDisparity(x, y);
-            if (estimatedDisparity <= 0.0 || estimatedDisparity > 255.0) {
-                segmentDisparityImage.at<float>(y, x) = 0.0f;
+            if (estimatedDisparity <= sgmDisparityMin_ || estimatedDisparity > sgmDisparityTotal_) {
+                segmentDisparityImage.at<float>(y, x) = sgmDisparityMin_;
             } else {
                 segmentDisparityImage.at<float>(y, x) = static_cast<float>(estimatedDisparity*outputDisparityFactor_);
             }
@@ -999,7 +1076,7 @@ void SPSStereo::makeSegmentBoundaryData(std::vector< std::vector<double> >& disp
 	}
 }
 
-void SPSStereo::set_SGM_dispairty_total(const int d)
+void SPSStereo::set_SGM_disparity_total(const int d)
 {
-    sgmDispairtyTotal_ = d;
+    sgmDisparityTotal_ = d;
 }

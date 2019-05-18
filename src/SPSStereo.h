@@ -25,6 +25,12 @@
 
 class SPSStereo : public StereoBase {
 public:
+    typedef enum
+    {
+        ORI_SGM = 0,
+        OCV_SGM = 1
+    }SGMMode_t;
+public:
 	SPSStereo();
 
 	void setOutputDisparityFactor(const double outputDisparityFactor);
@@ -43,7 +49,9 @@ public:
 				 const int* pixelDispIdxStart = NULL,
 				 const int* pixelDispIdxEnd = NULL);
 
-	void set_SGM_dispairty_total(const int d);
+	void set_SGM_disparity_total(const int d);
+	void set_SGM_disparity_min(const int d) { sgmDisparityMin_ = d; };
+	void set_SGM_mode(const SGMMode_t mode) { sgmMode_ = mode; }
 
 private:
 	class Segment {
@@ -193,7 +201,8 @@ private:
 	void setLabImage(const cv::Mat& leftImage);
 	void computeInitialDisparityImage(const cv::Mat& leftImage, const cv::Mat& rightImage,
 	        const int* pixelDispIdxStart = NULL,
-	        const int* pixelDispIdxEnd = NULL);
+	        const int* pixelDispIdxEnd = NULL,
+	        const SGMMode_t mode = ORI_SGM);
 	void initializeSegment(const int superpixelTotal);
 	void makeGridSegment(const int superpixelTotal);
 	void assignLabel();
@@ -257,5 +266,8 @@ private:
 	std::vector<Boundary> boundaries_;
 	std::vector< std::vector<int> > boundaryIndexMatrix_;
 
-	int sgmDispairtyTotal_;
+	int sgmDisparityTotal_;
+	int sgmDisparityMin_;
+
+	SGMMode_t sgmMode_;
 };

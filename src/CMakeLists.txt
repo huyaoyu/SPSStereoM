@@ -18,10 +18,15 @@ set(CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} "-msse4.2")
 #endif (APPLE)
 #set(CMAKE_BUILD_TYPE Release)
 
-set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} /opt/ros/kinetic/share/OpenCV-3.3.1-dev)
+#set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} /opt/ros/kinetic/share/OpenCV-3.3.1-dev)
+#
+#find_package(OpenCV REQUIRED)
+#message(STATUS "OpenCV_INCLUDE_DIRS = ${OpenCV_INCLUDE_DIRS}")
 
-find_package(OpenCV REQUIRED)
+find_package(OpenCV REQUIRED PATHS $ENV{OCV4_ROOT}/lib/cmake/opencv4 NO_DEFAULT_PATH)
+message(STATUS "OpenCV_VERSION = ${OpenCV_VERSION}")
 message(STATUS "OpenCV_INCLUDE_DIRS = ${OpenCV_INCLUDE_DIRS}")
+message(STATUS "OpenCV_INSTALL_PATH = ${OpenCV_INSTALL_PATH}")
 
 # Boost.
 FIND_LIBRARY( LIB_BOOST_FILESYSTEM NAMES boost_filesystem )

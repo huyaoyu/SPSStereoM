@@ -163,11 +163,15 @@ int main(int argc, char* argv[]) {
         sps.enable_debug(outputDir.string());
     }
 
-    sps.set_SGM_dispairty_total(static_cast<int>(J["stereo"]["maxDisparity"]) + 1);
+    sps.set_SGM_disparity_total(static_cast<int>(J["stereo"]["maxDisparity"]) + 1);
+    sps.set_SGM_disparity_min(static_cast<int>(J["stereo"]["minDisparity"]));
     sps.setIterationTotal(outerIterationTotal, innerIterationTotal);
     sps.setWeightParameter(lambda_pos, lambda_depth, lambda_bou, lambda_smo);
     sps.setInlierThreshold(lambda_d);
     sps.setPenaltyParameter(lambda_hinge, lambda_occ, lambda_pen);
+
+//    sps.set_SGM_mode( SPSStereo::ORI_SGM );
+    sps.set_SGM_mode( SPSStereo::OCV_SGM );
 
     cv::Mat segmentImage;
 //        cv::Mat disparityImage;
