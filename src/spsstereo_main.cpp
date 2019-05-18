@@ -147,8 +147,8 @@ int main(int argc, char* argv[]) {
     cv::Mat disparityImage;
 
     std::cout << "Procesing : " << leftImageFilename << std::endl;
-    leftImage = cv::imread(leftImageFilename, CV_LOAD_IMAGE_COLOR);
-    cv::Mat rightImage = cv::imread(rightImageFilename, CV_LOAD_IMAGE_COLOR);
+    leftImage = cv::imread(leftImageFilename, cv::IMREAD_UNCHANGED);
+    cv::Mat rightImage = cv::imread(rightImageFilename, cv::IMREAD_UNCHANGED);
 
     // Handle disparity range.
     std::cout << "Minimum disparity: " << J["stereo"]["minDisparity"] << ", "
