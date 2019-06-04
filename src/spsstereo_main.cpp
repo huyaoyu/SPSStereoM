@@ -134,6 +134,9 @@ int main(int argc, char* argv[]) {
     std::string leftImageFilename = J["images"]["L"];
     std::string rightImageFilename = J["images"]["R"];
 
+    std::string lowerBoundFilename = J["stereo"]["lowerBound"];
+    std::string upperBoundFilename = J["stereo"]["upperBound"];
+
     std::string outputBaseFilename;
 
     // Prepare the filename.
@@ -145,6 +148,7 @@ int main(int argc, char* argv[]) {
 
     cv::Mat leftImage;
     cv::Mat disparityImage;
+    cv::Mat initDisp;
 
     std::cout << "Procesing : " << leftImageFilename << std::endl;
     leftImage = cv::imread(leftImageFilename, cv::IMREAD_UNCHANGED);
@@ -172,6 +176,9 @@ int main(int argc, char* argv[]) {
 
 //    sps.set_SGM_mode( SPSStereo::ORI_SGM );
     sps.set_SGM_mode( SPSStereo::OCV_SGM );
+//    sps.set_SGM_mode( SPSStereo::OCV_SGM_PPSR );
+
+    sps.set_ppsr_bounds( lowerBoundFilename, upperBoundFilename );
 
     cv::Mat segmentImage;
 //        cv::Mat disparityImage;
@@ -180,7 +187,7 @@ int main(int argc, char* argv[]) {
 
     bpt::ptime start = bpt::microsec_clock::universal_time();
 
-    sps.compute(superpixelTotal, leftImage, rightImage, segmentImage, disparityImage, disparityPlaneParameters, boundaryLabels,
+    sps.compute(superpixelTotal, leftImage, rightImage, segmentImage, disparityImage, initDisp, disparityPlaneParameters, boundaryLabels,
             pixelDispIdxStart.ptr<int>(0), pixelDispIdxEnd.ptr<int>(0));
 
     bpt::ptime end =  bpt::microsec_clock::universal_time();
@@ -204,8 +211,8 @@ int main(int argc, char* argv[]) {
     writeBoundaryLabelFile(boundaryLabels, outputBoundaryLabelFilename);
 
     std::cout << "disparityImage.type() = " << disparityImage.type() << "." << std::endl;
-    cv::FileStorage file(outputBaseFilename + "_Disparity.yml", cv::FileStorage::WRITE);
-    file << "disparityImage" << disparityImage;
+//    cv::FileStorage file(outputBaseFilename + "_Disparity.yml", cv::FileStorage::WRITE);
+//    file << "disparityImage" << disparityImage;
 
     // Output floating point image.
 //        write_2_float_image(outputBaseFilename + "_float.png", disparityImage, 140, 180);
@@ -240,6 +247,8 @@ int main(int argc, char* argv[]) {
     disparityImage.convertTo(dispFloat, CV_32FC1);
 
     write_ply_with_color(outputBaseFilename + "_Cloud.ply", dispFloat, leftImage, rpjMatrix, true, false);
+
+    write_ply_with_color(outputBaseFilename + "_init_Cloud.ply", initDisp, leftImage, rpjMatrix, true, false);
 
     return 0;
 }

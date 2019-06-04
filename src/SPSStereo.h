@@ -28,7 +28,8 @@ public:
     typedef enum
     {
         ORI_SGM = 0,
-        OCV_SGM = 1
+        OCV_SGM = 1,
+        OCV_SGM_PPSR = 2
     }SGMMode_t;
 public:
 	SPSStereo();
@@ -44,6 +45,7 @@ public:
 				 const cv::Mat& rightImage,
 				 cv::Mat & segmentImage, //png::image<png::gray_pixel_16>
                  cv::Mat & disparityImage, // png::image<png::gray_pixel_16>
+                 cv::Mat & initDispImage,
 				 std::vector< std::vector<double> >& disparityPlaneParameters,
 				 std::vector< std::vector<int> >& boundaryLabels,
 				 const int* pixelDispIdxStart = NULL,
@@ -52,6 +54,8 @@ public:
 	void set_SGM_disparity_total(const int d);
 	void set_SGM_disparity_min(const int d) { sgmDisparityMin_ = d; };
 	void set_SGM_mode(const SGMMode_t mode) { sgmMode_ = mode; }
+    void set_ppsr_bounds( const std::string& lb, const std::string& up );
+	float* get_init_disp(void) { return initialDisparityImage_; };
 
 private:
 	class Segment {
@@ -236,7 +240,6 @@ private:
     void makeOutputImageF(cv::Mat /*png::image<png::gray_pixel_16>*/& segmentImage,cv::Mat& segmentDisparityImage) const;
 	void makeSegmentBoundaryData(std::vector< std::vector<double> >& disparityPlaneParameters, std::vector< std::vector<int> >& boundaryLabels) const;
 
-
 	// Parameter
 	double outputDisparityFactor_;
 	int outerIterationTotal_;
@@ -270,4 +273,8 @@ private:
 	int sgmDisparityMin_;
 
 	SGMMode_t sgmMode_;
+
+	// For PPSR.
+    std::string ppsrLowerBoundFn_;
+    std::string ppsrUpperBoundFn_;
 };

@@ -17,10 +17,14 @@
 
 #include "SPSStereo.h"
 #include <cmath>
+#include <cnpy.h>
 #include <algorithm>
 #include <stdexcept>
 #include <float.h>
 #include "SGMStereo.h"
+
+#include <sstream>
+#include <string>
 
 // Default parameters
 const double SPSSTEREO_DEFAULT_OUTPUT_DISPARITY_FACTOR = 1.0;
@@ -116,6 +120,7 @@ void SPSStereo::compute(const int superpixelTotal,
 						const cv::Mat & rightImage,
 						/*png::image<png::gray_pixel_16>*/cv::Mat & segmentImage,
 						/*png::image<png::gray_pixel_16>*/cv::Mat & disparityImage,
+                        cv::Mat & initDispImage,
 						std::vector< std::vector<double> >& disparityPlaneParameters,
 						std::vector< std::vector<int> >& boundaryLabels,
                         const int* pixelDispIdxStart,
@@ -133,6 +138,10 @@ void SPSStereo::compute(const int superpixelTotal,
 	allocateBuffer();
 
 	setInputData(leftImage, rightImage, pixelDispIdxStart, pixelDispIdxEnd);
+
+	cv::Mat initDisp(leftImage.rows, leftImage.cols, CV_32FC1, initialDisparityImage_);
+	initDispImage = initDisp.clone();
+
 	initializeSegment(superpixelTotal);
 	performSmoothingSegmentation();
 
@@ -208,6 +217,7 @@ void SPSStereo::setLabImage(const cv::Mat & leftImage) {
 }
 
 static void ocv_stereo_reconstruction(const cv::Mat& img0, const cv::Mat& img1,
+                           cv::PPSR* ppsr,
                            const int minD, const int maxD, float* disp)
 {
     // Check if the minD and maxD are appropriate.
@@ -227,16 +237,37 @@ static void ocv_stereo_reconstruction(const cv::Mat& img0, const cv::Mat& img1,
         throw std::runtime_error(ss.str());
     }
 
-    // Create OpenCV SGBM object.
-    cv::Ptr<cv::StereoSGBM> matcher = cv::StereoSGBM::create(
-            minD, maxD - minD + 1, /* min and num of disparities */
-            3, /* block size */
-            100, 500, /* P1, P2 */
-            1, /* disp12MaxDiff */
-            31, 5, /* preFilterCap and uniqueness ratio */
-            250, 2, /* speckle window size and range */
-            cv::StereoSGBM::MODE_SGBM
-    );
+    cv::Ptr<cv::StereoSGBM> matcher = NULL;
+
+    if ( NULL != ppsr )
+    {
+        // Create OpenCV SGBM object.
+        matcher = cv::StereoSGBM::create(
+                minD, maxD - minD + 1, /* min and num of disparities */
+                5, /* block size */
+                100, 1600, /* P1, P2 */
+                2, /* disp12MaxDiff */
+                15, 20, /* preFilterCap and uniqueness ratio */
+                100, 1, /* speckle window size and range */
+                cv::StereoSGBM::MODE_PPSR
+        );
+
+        // Set the per-pixel searching range.
+        matcher->ppsr = ppsr;
+    }
+    else
+    {
+        // Create OpenCV SGBM object.
+        matcher = cv::StereoSGBM::create(
+                minD, maxD - minD + 1, /* min and num of disparities */
+                5, /* block size */
+                100, 1600, /* P1, P2 */
+                2, /* disp12MaxDiff */
+                15, 20, /* preFilterCap and uniqueness ratio */
+                100, 1, /* speckle window size and range */
+                cv::StereoSGBM::MODE_SGBM
+        );
+    }
 
     // Compute the disparity.
     cv::Mat tempDisp, dispF;
@@ -262,9 +293,74 @@ static void ocv_stereo_reconstruction(const cv::Mat& img0, const cv::Mat& img1,
     }
 }
 
+static void ocv_stereo_ppsr(const cv::Mat& img0, const cv::Mat& img1,
+                            const int* starting, const int* ending,
+                            const int minD, const int maxD, float* disp)
+{
+    // Copy the starting and ending disparities.
+    if ( NULL != starting && NULL != ending )
+    {
+        // Create PPSR object.
+        cv::PPSR ppsr(img0.rows, img0.cols, minD, maxD);
+        ppsr.initialize_pixel_disp_range();
+
+        ppsr.copy_pixel_disp_range( starting, ppsr.ppsrMin, ending, ppsr.ppsrMax );
+
+        // Debug.
+        std::vector<size_t> s = {static_cast<size_t>(img0.rows), static_cast<size_t>(img0.cols) };
+        cnpy::npy_save("ppsrMin.npy", ppsr.ppsrMin, s, "w");
+        cnpy::npy_save("ppsrMax.npy", ppsr.ppsrMax, s, "w");
+
+        // Calculate the disparity.
+        ocv_stereo_reconstruction(img0, img1, &ppsr, minD, maxD, disp);
+    }
+    else
+    {
+        ocv_stereo_reconstruction(img0, img1, NULL, minD, maxD, disp);
+    }
+}
+
+void SPSStereo::set_ppsr_bounds( const std::string& lb, const std::string& up )
+{
+    ppsrLowerBoundFn_ = lb;
+    ppsrUpperBoundFn_ = up;
+}
+
+template <typename T>
+static void load_numpy_array(const std::string& fn, T* array, const int height, const int width)
+{
+    // Read the data in .npy format.
+    cnpy::NpyArray npy = cnpy::npy_load(fn);
+
+    const int rows = npy.shape[0];
+    const int cols = npy.shape[1];
+
+    // Debug.
+    std::cout << "rows = " << rows << ", cols = " << cols << "." << std::endl;
+
+    if ( rows * cols != height * width )
+    {
+        std::stringstream ss;
+        ss << "The shape of the input numpy array is not compatible with the input image. "
+           << " height = " << height << ", width = " << width
+           << ", rows = " << rows << ", cols = " << cols
+           << "." << std::endl;
+        throw std::runtime_error(ss.str());
+    }
+
+    // Copy the data to array.
+    T* data = npy.data<T>();
+    for ( int i = 0; i < rows*cols; i++ )
+    {
+        array[i] = static_cast<T>( data[i] );
+    }
+}
+
 void SPSStereo::computeInitialDisparityImage(const cv::Mat& leftImage, const cv::Mat & rightImage,
                                              const int* pixelDispIdxStart,
                                              const int* pixelDispIdxEnd, const SGMMode_t mode) {
+    int *starting = NULL, *ending = NULL;
+
     switch(mode)
     {
         case ORI_SGM:
@@ -281,12 +377,52 @@ void SPSStereo::computeInitialDisparityImage(const cv::Mat& leftImage, const cv:
 
             sgm.compute(leftImage, rightImage, initialDisparityImage_, pixelDispIdxStart, pixelDispIdxEnd);
 
+            // Save the initial disparity image for debugging.
+            std::vector<size_t> s{static_cast<size_t>(height_), static_cast<size_t>(width_)};
+            cnpy::npy_save("InitialDisparityImage.npy", initialDisparityImage_, s, "w");
+
             break;
         }
         case OCV_SGM:
         {
             std::cout << "Compute the initial disparity with OpenCV SGBM implementation." << std::endl;
-            ocv_stereo_reconstruction(leftImage, rightImage, sgmDisparityMin_, sgmDisparityTotal_-1, initialDisparityImage_);
+            ocv_stereo_ppsr(leftImage, rightImage,
+                            starting, ending,
+                            sgmDisparityMin_, sgmDisparityTotal_-1, initialDisparityImage_);
+            // Save the initial disparity image for debugging.
+            std::vector<size_t> s{static_cast<size_t>(height_), static_cast<size_t>(width_)};
+            cnpy::npy_save("InitialDisparityImage_OCV.npy", initialDisparityImage_, s, "w");
+
+            break;
+        }
+        case OCV_SGM_PPSR:
+        {
+            std::cout << "Compute the initial disparity with OpenCV SGBM PPSR implementation." << std::endl;
+
+            // Allocate memory.
+            starting = new int[height_*width_];
+            ending   = new int[height_*width_];
+
+            // Load the lower and upper bounds from file system.
+            load_numpy_array(ppsrLowerBoundFn_, starting, height_, width_);
+            load_numpy_array(ppsrUpperBoundFn_, ending, height_, width_);
+
+            std::vector<size_t> s{static_cast<size_t>(height_), static_cast<size_t>(width_)};
+
+            // Save the starting and ending disparity back to file system to check.
+            cnpy::npy_save("starting.npy", starting, s, "w");
+            cnpy::npy_save("ending.npy", ending, s, "w");
+
+            ocv_stereo_ppsr(leftImage, rightImage,
+                    starting, ending,
+                    sgmDisparityMin_, sgmDisparityTotal_-1, initialDisparityImage_);
+
+            // Save the initial disparity image for debugging.
+            cnpy::npy_save("InitialDisparityImage_PPSR.npy", initialDisparityImage_, s, "w");
+
+            delete [] ending;
+            delete [] starting;
+
             break;
         }
         default:

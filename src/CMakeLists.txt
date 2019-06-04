@@ -36,6 +36,10 @@ message(STATUS "LIB_BOOST_FILESYSTEM=${LIB_BOOST_FILESYSTEM}")
 message(STATUS "LIB_BOOST_SYSTEM=${LIB_BOOST_SYSTEM}")
 message(STATUS "LIB_BOOST_PROGRAM_OPTIONS=${LIB_BOOST_PROGRAM_OPTIONS}")
 
+# cnpy.
+FIND_LIBRARY( LIB_CNPY cnpy )
+message(STATUS "LIB_CNPY=${LIB_CNPY}")
+
 include_directories(AFTER ${OpenCV_INCLUDE_DIRS})
 include_directories(BEFORE ../includes)
 
@@ -54,4 +58,4 @@ ENDIF (SPSSTEREO_SRC_FILES)
 add_executable(spsstereo ${SPSSTEREO_SRC_FILES})
 #add_executable(spsstereo spsstereo_main.cpp SGMStereo.cpp SPSStereo.cpp StereoUtils/PLY.cpp)
 target_include_directories(spsstereo PRIVATE ${OpenCV_INCLUDE_DIRS})
-target_link_libraries(spsstereo ${OpenCV_LIBRARIES} ${LIB_BOOST_SYSTEM} ${LIB_BOOST_FILESYSTEM} ${LIB_BOOST_PROGRAM_OPTIONS})
+target_link_libraries(spsstereo ${OpenCV_LIBRARIES} ${LIB_BOOST_SYSTEM} ${LIB_BOOST_FILESYSTEM} ${LIB_BOOST_PROGRAM_OPTIONS} ${LIB_CNPY})
