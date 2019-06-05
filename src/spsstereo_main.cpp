@@ -211,8 +211,8 @@ int main(int argc, char* argv[]) {
     writeBoundaryLabelFile(boundaryLabels, outputBoundaryLabelFilename);
 
     std::cout << "disparityImage.type() = " << disparityImage.type() << "." << std::endl;
-//    cv::FileStorage file(outputBaseFilename + "_Disparity.yml", cv::FileStorage::WRITE);
-//    file << "disparityImage" << disparityImage;
+    cv::FileStorage file(outputBaseFilename + "_Disparity.yml", cv::FileStorage::WRITE);
+    file << "disparityImage" << disparityImage;
 
     // Output floating point image.
 //        write_2_float_image(outputBaseFilename + "_float.png", disparityImage, 140, 180);

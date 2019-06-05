@@ -245,10 +245,10 @@ static void ocv_stereo_reconstruction(const cv::Mat& img0, const cv::Mat& img1,
         matcher = cv::StereoSGBM::create(
                 minD, maxD - minD + 1, /* min and num of disparities */
                 5, /* block size */
-                100, 1600, /* P1, P2 */
+                100, 400, /* P1, P2 */
                 2, /* disp12MaxDiff */
-                15, 20, /* preFilterCap and uniqueness ratio */
-                100, 1, /* speckle window size and range */
+                31, 5, /* preFilterCap and uniqueness ratio */
+                200, 2, /* speckle window size and range */
                 cv::StereoSGBM::MODE_PPSR
         );
 
@@ -261,10 +261,10 @@ static void ocv_stereo_reconstruction(const cv::Mat& img0, const cv::Mat& img1,
         matcher = cv::StereoSGBM::create(
                 minD, maxD - minD + 1, /* min and num of disparities */
                 5, /* block size */
-                100, 1600, /* P1, P2 */
+                100, 400, /* P1, P2 */
                 2, /* disp12MaxDiff */
-                15, 20, /* preFilterCap and uniqueness ratio */
-                100, 1, /* speckle window size and range */
+                31, 5, /* preFilterCap and uniqueness ratio */
+                200, 2, /* speckle window size and range */
                 cv::StereoSGBM::MODE_SGBM
         );
     }
@@ -304,7 +304,7 @@ static void ocv_stereo_ppsr(const cv::Mat& img0, const cv::Mat& img1,
         cv::PPSR ppsr(img0.rows, img0.cols, minD, maxD);
         ppsr.initialize_pixel_disp_range();
 
-        ppsr.copy_pixel_disp_range( starting, ppsr.ppsrMin, ending, ppsr.ppsrMax );
+        ppsr.copy_pixel_disp_range( starting, ending );
 
         // Debug.
         std::vector<size_t> s = {static_cast<size_t>(img0.rows), static_cast<size_t>(img0.cols) };
